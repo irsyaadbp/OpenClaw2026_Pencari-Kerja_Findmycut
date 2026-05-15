@@ -16,7 +16,7 @@
 | Main LLM | MiMo (custom base URL) |
 | Vision | Replicate: lucataco/moondream2 |
 | Image Gen | Replicate: black-forest-labs/flux-2-pro |
-| Auth | Anonymous session + Username-password + Google OAuth |
+| Auth | **Better Auth** (username + Google OAuth + anonymous sessions) |
 | Storage | Cloudflare R2 (convert to webp) |
 | Rate Limiting | In-memory (Map) |
 | Database | Neon PostgreSQL + pgvector |
