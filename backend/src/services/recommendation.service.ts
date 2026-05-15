@@ -1,17 +1,21 @@
 import * as recRepo from "../repositories/recommendation.repo";
 import * as analysisRepo from "../repositories/analysis.repo";
+import * as userRepo from "../repositories/user.repo";
 import { auth } from "../lib/auth";
 
 export async function getRecommendations(analysisId: string, headers: Headers) {
   const analysis = await analysisRepo.findById(analysisId);
   if (!analysis) throw new Error("Analysis not found");
 
-  // Determine tier from Better Auth session
+  // Determine tier from Better Auth session → check user tier in DB
   const session = await auth.api.getSession({ headers });
   let tier = "free";
 
-  // Check if user has paid (via payments table)
-  // For now, default to free unless explicitly pro
+  if (session?.user?.id) {
+    const userTier = await userRepo.getTier(session.user.id);
+    tier = userTier || "free";
+  }
+
   const recs = await recRepo.findByAnalysisId(analysisId);
 
   if (tier === "free") {

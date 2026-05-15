@@ -1,32 +1,223 @@
 {
   "oval": {
-    "recommended": ["Textured Crop", "Side Part", "French Crop", "Quiff", "Slick Back", "Pompadour"],
-    "avoid": ["Very long flat hair"],
-    "notes": "Most versatile face shape"
+    "recommended": [
+      "Textured Crop",
+      "Side Part",
+      "French Crop",
+      "Quiff",
+      "Slick Back",
+      "Pompadour",
+      "Buzz Cut",
+      "Undercut",
+      "Medium Waves",
+      "Long and Layered",
+      "Crew Cut",
+      "Taper Fade",
+      "Classic Comb Over",
+      "Messy Textured Top",
+      "Ivy League Cut"
+    ],
+    "avoid": [
+      "Very long flat hair",
+      "Heavy long fringe that covers forehead",
+      "Overly voluminous styles at the sides",
+      "Center parting with flat lifeless hair",
+      "Too much layering at the sides",
+      "Over-gelled stiff styles that hide natural texture",
+      "Excessive width at the sides with thick hair"
+    ],
+    "notes": "Oval is the most versatile face shape — nearly any hairstyle works. The balanced proportions (slightly longer than wide) mean you can experiment freely. Key barber advice: use matte products like clays and pastes for natural texture; add subtle height at the front for structure; keep the sides slightly shorter to maintain clean lines. Avoid styles that add too much volume on the sides (making face appear wider) or very long heavy fringe (making face appear shorter and rounder). The golden rule is to let the haircut follow the natural flow of the head, not work against it. Beard pairing: short fade + stubble for a sharp look, or textured top + full beard for a rugged aesthetic."
   },
   "round": {
-    "recommended": ["Undercut", "Pompadour", "Quiff", "Faux Hawk", "Side Part"],
-    "avoid": ["Buzz cut", "Caesar Cut"],
-    "notes": "Need height on top to elongate"
+    "recommended": [
+      "Undercut",
+      "Pompadour",
+      "Quiff",
+      "Faux Hawk",
+      "Side Part",
+      "High Fade with Volume on Top",
+      "Slicked Back Undercut",
+      "Flat Top",
+      "Messy Mohawk",
+      "Textured French Crop",
+      "Spiky Textured Top",
+      "Side Part with Fade",
+      "High and Tight",
+      "Messy Waves with Height"
+    ],
+    "avoid": [
+      "Buzz cut",
+      "Caesar Cut",
+      "Full sides with no taper",
+      "Straight blunt fringe",
+      "Rounded bowl cuts",
+      "Crew cut without height",
+      "Center part without volume",
+      "Low fades that emphasize width",
+      "Curly hair worn flat without height",
+      "Overly rounded beard styles"
+    ],
+    "notes": "Round faces have similar width and length with softer jawlines and full cheeks. The goal is to create the illusion of structure and angles by adding height on top and keeping sides tight. Key barber advice: high fades are the best option — they create vertical emphasis making the face appear more oval. Avoid low fades which make the face look rounder. Square corners at the high recession area sharpen up soft edges. Always opt for volume and lift at the crown. Use volumizing products, blow-dry upward for lift. Strategic facial hair helps: a beard with length at the chin creates a V-shape that elongates the face — avoid full rounded beards. Best fade pairings: high fade + pompadour, high fade + quiff, high fade + textured crop with lift."
   },
   "square": {
-    "recommended": ["Textured Crop", "French Crop", "Crew Cut", "Side Part", "Caesar Cut"],
-    "avoid": ["Very rounded styles"],
-    "notes": "Strong jawline pairs with structured cuts"
+    "recommended": [
+      "Textured Crop",
+      "French Crop",
+      "Crew Cut",
+      "Side Part",
+      "Caesar Cut",
+      "Comb Over",
+      "Pompadour",
+      "Textured Quiff",
+      "Medium Length Quiff",
+      "Faux Hawk",
+      "Buzz Cut",
+      "Angled Fringe",
+      "Ivy League Cut",
+      "Slick Back",
+      "Undercut with Textured Top"
+    ],
+    "avoid": [
+      "Very rounded styles that add width",
+      "Boxy sides with too much width",
+      "Very flat top styles that emphasize squareness",
+      "Center parting that highlights symmetry",
+      "Overly structured geometric cuts",
+      "Crew cut that's too blunt and boxy"
+    ],
+    "notes": "Square faces feature a strong jawline, broad forehead, and angular lines — considered very masculine. Most men prefer to soften the angles for a less intense look. Key barber advice: the asymmetry of a side part breaks up the perceived uniformity and makes things look more interesting. Greater length on top creates the illusion of height to offset the square shape. An angled fringe draws the eye away from the jawline. You can go two ways: keep it short and cropped (military buzz cut) for an alpha look, OR add length and weight around the face with a high quiff or textured side parting to soften angles. For beards: go very short (stubble) or fairly long — medium length can look awkward. Keep sideburns short. The emphasis is on creating contrasting vertical lengths either on top or with a beard."
   },
   "heart": {
-    "recommended": ["Side Swept", "Fringe", "Textured Quiff", "Messy Crop"],
-    "avoid": ["Slicked back", "High volume pompadour"],
-    "notes": "Need volume at chin level"
+    "recommended": [
+      "Side Swept",
+      "Fringe",
+      "Textured Quiff",
+      "Messy Crop",
+      "Undercut",
+      "Taper Fade",
+      "Crew Cut",
+      "Short Curls",
+      "Side Swept Bangs",
+      "Medium Layers",
+      "Low Fade with Volume on Top",
+      "Brush-Back Flow",
+      "Short Faux Hawk",
+      "Blowout Taper"
+    ],
+    "avoid": [
+      "Slicked back styles",
+      "High volume pompadour",
+      "Very short sides with no volume at jaw level",
+      "Buzz cut that exposes wide forehead",
+      "Styles that add excessive volume at the top only",
+      "Tight pulled-back styles that emphasize forehead width",
+      "Center parting that highlights the V-shape"
+    ],
+    "notes": "Heart-shaped faces have a wider forehead tapering to a narrower chin — the goal is to balance the top-heavy proportions. Key barber advice: add volume and width at the chin level, not just the top. Medium-length styles work well as they add width around the jaw. Side-swept bangs help reduce forehead prominence. A medium-length textured style with some width at the sides creates the best balance. Use products that give texture and movement rather than height. Avoid anything that adds more volume to the top of the head (exaggerates the V-shape). Taper fades and undercuts work well when paired with sufficient length on top swept to the side. Crew cuts and butch cuts also work for a low-maintenance professional look. Facial hair: a fuller beard at the chin area helps balance the narrower jaw."
   },
   "oblong": {
-    "recommended": ["French Crop", "Crew Cut", "Side Part", "Caesar Cut"],
-    "avoid": ["Pompadour", "Very tall styles"],
-    "notes": "Avoid adding height"
+    "recommended": [
+      "French Crop",
+      "Crew Cut",
+      "Side Part",
+      "Caesar Cut",
+      "Textured Fringe",
+      "Curtain Bangs",
+      "Wispy Middle Part",
+      "Messy Fringe",
+      "Low Fade Comb Over",
+      "Short Quiff",
+      "Textured Crop with Width",
+      "Tapered Mullet",
+      "Side Swept Style",
+      "Short Flat Top",
+      "Ivy League Cut"
+    ],
+    "avoid": [
+      "Pompadour",
+      "Very tall styles with excessive height",
+      "Very tight sides with long top (skin fades)",
+      "Tapered faux hawks with deep fades",
+      "High top knots",
+      "Straight flat hair without volume at the sides",
+      "Mohawk-style cuts that elongate the face",
+      "Overly long slicked-back styles"
+    ],
+    "notes": "Oblong faces are noticeably longer than wide. The goal is to add WIDTH and volume at the sides while avoiding any additional height. Key barber advice: never go too short on the sides — a high fade can make an oblong face appear narrower. Retain some length on the sides. Use matte products to keep attention on the shape, not shine. Don't hide natural wave — wavy texture gives volume at the sides which is exactly what you need. A Caesar cut or textured crop brings hair forward to cover the forehead, creating a shortening effect. For medium-length styles, curtain bangs create a face-framing effect adding width. When wearing hair long, avoid straight cuts that pull the face downward — go for shoulder-length with layers. Wear long hair in a low bun or ponytail at the base of the neck, never a high top knot. Keep any slicked-back style flat or slightly angled to one side."
   },
   "diamond": {
-    "recommended": ["Textured Fringe", "Side Part", "Quiff", "French Crop"],
-    "avoid": ["Buzz cut"],
-    "notes": "Soften angular features with texture"
+    "recommended": [
+      "Textured Fringe",
+      "Side Part",
+      "Quiff",
+      "French Crop",
+      "Sweeping Fringe",
+      "Faux Hawk",
+      "Messy Fringe with High Fade",
+      "Mid Fade",
+      "Long Slick Back",
+      "Short Afro",
+      "Natural Wavy Hairstyle",
+      "Layered Cuts with Sweeping Sections",
+      "Man Bun",
+      "High Fade with Sweeping Fringe",
+      "Buzz Cut"
+    ],
+    "avoid": [
+      "Buzz cut without any length on top",
+      "Very short cropped all-over styles",
+      "Straight back slicked styles that expose all angles",
+      "Styles that add too much width at the cheekbones",
+      "Flat lifeless hair with no texture",
+      "Overly boxy or geometric cuts",
+      "Center parting that highlights the narrow forehead"
+    ],
+    "notes": "Diamond faces are characterized by narrow jawline and forehead with width at the cheekbones — very angular and masculine. The goal is to add width at the forehead and soften the sharpness of the jawline. Key barber advice: opt for layered cuts with strong, sweeping sections. A messy fringe paired with a high fade makes for a great contemporary option — the fringe adds texture to the forehead while the fade keeps it clean. Keep the hair relatively long and layered with soft angles to play off the pointy features. The trick is to add loads of texture to break up hard lines and add movement. High fades with sweeping fringes add width to the top while accentuating cheekbones. Faux hawks work well but don't style too high or it becomes boxy. Natural wavy texture works beautifully — let it dry naturally or use a diffuser. Use styling cream for volume and texture or high-shine pomade for a glossy finish."
+  },
+  "triangle": {
+    "recommended": [
+      "Textured Crop",
+      "Side Swept Fringe",
+      "French Crop",
+      "Messy Fringe",
+      "Medium Layers",
+      "Brushed Up Style",
+      "Textured Quiff",
+      "Low Fade with Volume on Top",
+      "Side Part with Volume",
+      "Fringe with Taper"
+    ],
+    "avoid": [
+      "Very short buzz cuts that expose the jawline",
+      "Tight skin fades on the sides",
+      "Slicked back styles that expose the wide jaw",
+      "Flat top cuts that narrow the forehead",
+      "Styles with no volume at the temples"
+    ],
+    "notes": "Triangle face shape is the inverse of heart — wider at the jawline and narrower at the forehead. The goal is to add width and volume at the forehead and temples to balance the wider jaw. Key barber advice: keep the hair close to the head with no extra volume near the ears, and gradually increase width at the temple and forehead area. Fringes and textured bangs work exceptionally well to add width at the top. Use volumizing products at the roots near the forehead. Medium-length styles with layers around the cheekbone area help balance proportions. Side-swept styles with volume create asymmetry that softens the jaw width. Avoid pulling hair tight against the head as this emphasizes the jaw-heavy silhouette. The barber should focus on building width in the upper third of the face while keeping the sides tapered."
+  },
+  "rectangle": {
+    "recommended": [
+      "Textured Side Part",
+      "Messy Textured Crop",
+      "Medium Length with Layers",
+      "Side Swept Fringe",
+      "Crew Cut with Texture",
+      "Short Quiff",
+      "Scissor Cut with Side Volume",
+      "Natural Texture with Length on Sides",
+      "Low Taper with Messy Top",
+      "Curtain Bangs"
+    ],
+    "avoid": [
+      "Skin fades that make face look thinner and longer",
+      "Pompadour with excessive height",
+      "High quiffs that elongate the face",
+      "Very short all-over cuts",
+      "Straight flat hair without texture",
+      "Tight slicked-back styles",
+      "Overly tall structured styles"
+    ],
+    "notes": "Rectangle face shape is similar to square but more elongated — forehead, cheekbones and jawline are similar in width but the face is longer. The goal is to add width around the face without adding height. Key barber advice: going super-short or opting for a skin fade will only make the face look thinner and longer — avoid this. Keep length on the sides and add texture to the top. A scissor cut works better than clipper cuts for this shape. For variation, try a side-parting crew cut keeping the sides long and the body messy and texturized. The emphasis is on building horizontal volume rather than vertical height. Use products that create texture and movement — matte clays and sea salt sprays work well. Avoid any style that draws the eye vertically upward. Medium-length cuts with natural movement are the sweet spot."
   }
 }

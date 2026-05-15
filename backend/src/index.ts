@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { pinoLogger } from "hono-pino";
+import { swaggerUI } from "@hono/swagger-ui";
 
 import { logger, createChildLogger } from "./lib/logger";
+import { openApiSpec } from "./lib/swagger";
 import { runStartupHealthChecks, formatHealthReport } from "./lib/healthcheck";
 import { authMiddleware } from "./middleware/auth";
 import { rateLimitMiddleware } from "./middleware/rate-limit";
@@ -33,6 +35,10 @@ app.use("*", authMiddleware);
 
 // Health check (no auth/rate-limit needed)
 app.get("/health", (c) => c.json({ status: "ok", service: "findmycut-api" }));
+
+// Swagger UI — API Documentation
+app.get("/docs", swaggerUI({ url: "/docs/openapi.json" }));
+app.get("/docs/openapi.json", (c) => c.json(openApiSpec));
 
 // Better Auth — handles all /api/auth/* routes
 app.route("/api/auth", authRoutes);
@@ -80,6 +86,7 @@ const server = Bun.serve({
 log.info({ port: server.port }, `🔥 FindMyCut API running on http://localhost:${server.port}`);
 log.info(`📝 Auth: http://localhost:${server.port}/api/auth/*`);
 log.info(`📊 Health: http://localhost:${server.port}/health`);
+log.info(`📖 Swagger: http://localhost:${server.port}/docs`);
 
 // ============ GRACEFUL SHUTDOWN ============
 
