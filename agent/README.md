@@ -1,16 +1,16 @@
 # FindMyCut — Agent Workspace
 
-Multi-agent AI pipeline for haircut recommendation. 4 agents run sequentially, each with autonomous tool-calling loops.
+Multi-agent AI pipeline for haircut recommendation. 5 agents run sequentially, each with autonomous tool-calling loops. Agent 4 (Image Gen) and Agent 5 (Barbershop Finder) are optional — the pipeline continues even if they fail.
 
 ---
 
 ## How It Works
 
 ```
-📸 User Photos → Agent Pipeline → 📊 Recommendations
+📸 User Photos → Agent Pipeline → 📊 Recommendations + 📍 Barbershops
 ```
 
-The pipeline consists of 4 specialized AI agents that communicate via structured JSON. Each agent has its own system prompt, tool definitions, and autonomous reasoning loop.
+The pipeline consists of 5 specialized AI agents that communicate via structured JSON. Each agent has its own system prompt, tool definitions, and autonomous reasoning loop.
 
 ---
 
@@ -44,10 +44,20 @@ Photo URLs (1-4)
 └──────────────┬──────────────────────┘
                ↓
 ┌─────────────────────────────────────┐
-│  🖼️ Agent 4: Image Generator        │
+│  🖼️ Agent 4: Image Generator        │  ← optional
 │  API: Replicate FLUX-2-pro          │
 │  Tools: generate_hairstyle_image    │
 │  Output: image URLs → R2            │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│  📍 Agent 5: Barbershop Finder      │  ← optional, pro-only
+│  API: MiMo (tool calling)           │
+│  Tools: search_nearby,              │
+│         get_details,                │
+│         calculate_distance          │
+│  Data: curated JSON + Haversine     │
+│  Output: top 3 barbershops nearby   │
 └─────────────────────────────────────┘
 ```
 
@@ -110,19 +120,6 @@ Iteration 5: Call merge_analyses(all_results)
 | `query_hair_compatibility` | `{ style_name, hair_texture, hair_thickness }` | `{ compatible: bool, reason }` |
 | `get_style_details` | `{ style_name }` | Full style details (description, tips, barber instruction) |
 
-**Autonomous Loop:**
-```
-Iteration 1:  Call query_face_shape_guide("oval") → 6 recommended styles
-Iteration 2:  Call query_hair_compatibility("Textured Crop", "straight", "thick") → compatible
-Iteration 3:  Call query_hair_compatibility("Side Part", "straight", "thick") → compatible
-Iteration 4:  Call query_hair_compatibility("French Crop", "straight", "thick") → compatible
-... (repeat for each style)
-Iteration N:  Call get_style_details("Textured Crop")
-Iteration N+1: Call get_style_details("Side Part")
-... (repeat for compatible styles)
-→ Return StyleCandidate[] (5-7 candidates)
-```
-
 **Knowledge Base:** Local JSON files in `src/knowledge/`
 - `face-shapes.json` — 6 face shapes → recommended/avoided styles
 - `hair-types.json` — 4 textures × 3 thicknesses → compatibility matrix
@@ -140,20 +137,8 @@ Iteration N+1: Call get_style_details("Side Part")
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `calculate_match_score` | `{ face_shape, hair_texture, hair_thickness, style_name, suitable_* }` | `{ overall: 0-100, reasons[] }` |
+| `calculate_match_score` | `{ face_shape, hair_texture, hair_thickness, style_name }` | `{ overall: 0-100, reasons[] }` |
 | `generate_explanation` | `{ style_name, face_shape, hair_texture, score }` | `{ main_reason, detail_reasons[], styling_tips }` |
-
-**Autonomous Loop:**
-```
-Iteration 1: Call calculate_match_score(candidate_1) → score 94
-Iteration 2: Call calculate_match_score(candidate_2) → score 88
-... (for all candidates)
-Iteration N: Sort by score, pick top 6
-Iteration N+1: Call generate_explanation(rank_1)
-Iteration N+2: Call generate_explanation(rank_2)
-... (for top 3-6)
-→ Return Recommendation[] (ranked, with explanations)
-```
 
 **Scoring Algorithm:**
 - Face shape match: +25 points
@@ -164,9 +149,9 @@ Iteration N+2: Call generate_explanation(rank_2)
 
 ---
 
-### Agent 4: Image Generator
+### Agent 4: Image Generator (optional)
 
-**Purpose:** Generate reference hairstyle images for each recommendation.
+**Purpose:** Generate reference hairstyle images for each recommendation. Pipeline continues if this agent fails.
 
 **API:** Replicate `black-forest-labs/flux-2-pro`
 
@@ -176,13 +161,29 @@ Iteration N+2: Call generate_explanation(rank_2)
 |------|-------|--------|
 | `generate_hairstyle_image` | `{ style_name, description, angle }` | `{ style_name, angle, image_url }` |
 
-**Autonomous Loop:**
-```
-Iteration 1: Generate image for rank 1 style (front view)
-Iteration 2: Generate image for rank 2 style (front view)
-Iteration 3: Generate image for rank 3 style (front view)
-→ Return image URLs
-```
+---
+
+### Agent 5: Barbershop Finder (optional, pro-only)
+
+**Purpose:** Find nearby barbershops that match recommended hairstyles. Uses Haversine distance calculation on a curated dataset. Gracefully skips if no user location is provided.
+
+**API:** MiMo (OpenAI-compatible, tool calling)
+
+**Tools:**
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `search_nearby_barbershops` | `{ latitude, longitude, radius_km, style_name }` | `{ count, barbershops[] }` |
+| `get_barbershop_details` | `{ barbershop_id }` | Full barbershop info |
+| `calculate_distance` | `{ lat1, lng1, lat2, lng2 }` | `{ distance_km }` |
+
+**Data Source:** `src/knowledge/barbershops.json` — curated barbershops in Indonesia (Surabaya, Sidoarjo, Jakarta, Bandung). Google Places API integration ready (set `GOOGLE_MAPS_API_KEY` to enable).
+
+**Matching Logic:**
+1. Filter barbershops within radius (default 10km)
+2. Match specialties with recommended styles
+3. Rank by: style match > distance > rating
+4. Return top 3
 
 ---
 
@@ -218,23 +219,26 @@ This creates an **autonomous reasoning loop**: the LLM decides which tools to ca
 ```
 agent/src/
 ├── index.ts                   # Export runPipeline
-├── pipeline.ts                # Orchestrate 4 agents sequentially
+├── pipeline.ts                # Orchestrate 5 agents sequentially
 ├── runner.ts                  # Core autonomous loop engine
 ├── types.ts                   # TypeScript interfaces
 ├── agents/
-│   ├── vision.ts              # Agent 1 config
-│   ├── knowledge.ts           # Agent 2 config
-│   ├── ranker.ts              # Agent 3 config
-│   └── imagegen.ts            # Agent 4 config
+│   ├── vision.ts              # Agent 1: Vision Analyzer
+│   ├── knowledge.ts           # Agent 2: Style Matcher
+│   ├── ranker.ts              # Agent 3: Ranker & Explainer
+│   ├── imagegen.ts            # Agent 4: Image Generator
+│   └── barbershop.ts          # Agent 5: Barbershop Finder
 ├── tools/
 │   ├── vision-tools.ts        # 2 tools: analyze_image, merge_analyses
 │   ├── knowledge-tools.ts     # 3 tools: face_shape, compatibility, details
 │   ├── ranker-tools.ts        # 2 tools: score, explanation
-│   └── imagegen-tools.ts      # 1 tool: generate_image
+│   ├── imagegen-tools.ts      # 1 tool: generate_image
+│   └── barbershop-tools.ts    # 3 tools: search_nearby, get_details, distance
 ├── knowledge/
 │   ├── face-shapes.json       # 6 face shapes mapping
 │   ├── hair-types.json        # 4 textures × 3 thicknesses
-│   └── styles.json            # 6 hairstyle definitions
+│   ├── styles.json            # 6 hairstyle definitions
+│   └── barbershops.json       # Curated barbershops (Indonesia)
 └── lib/
     ├── llm.ts                 # OpenAI SDK wrapper
     └── replicate.ts           # Replicate API wrapper
@@ -246,13 +250,15 @@ agent/src/
 
 See `.env.example` in the backend folder. The agent reads the same `.env` file.
 
-Required:
-- `MAIN_LLM_BASE_URL` — MiMo API endpoint
-- `MAIN_LLM_API_KEY` — MiMo API key
-- `MAIN_LLM_MODEL` — Model name (default: mimo-v2.5-pro)
-- `REPLICATE_API_TOKEN` — Replicate API token
-- `REPLICATE_VISION_MODEL` — Vision model (default: lucataco/moondream2)
-- `REPLICATE_IMAGEGEN_MODEL` — Image gen model (default: black-forest-labs/flux-2-pro)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MAIN_LLM_BASE_URL` | **Yes** | MiMo API endpoint |
+| `MAIN_LLM_API_KEY` | **Yes** | MiMo API key |
+| `MAIN_LLM_MODEL` | **Yes** | Model name (default: mimo-v2.5-pro) |
+| `REPLICATE_API_TOKEN` | **Yes** | Replicate API token |
+| `REPLICATE_VISION_MODEL` | No | Vision model (default: lucataco/moondream2) |
+| `REPLICATE_IMAGEGEN_MODEL` | No | Image gen model (default: black-forest-labs/flux-2-pro) |
+| `GOOGLE_MAPS_API_KEY` | No | Google Maps API key (Agent 5, optional) |
 
 ---
 
@@ -267,9 +273,15 @@ const result = await runPipeline(
     onProgress: (agent, step, message) => {
       console.log(`[${agent}] ${step}: ${message}`);
     },
+  },
+  {
+    userLatitude: -7.2906,     // optional: enables Agent 5
+    userLongitude: 112.7344,   // optional: enables Agent 5
+    tier: "pro",               // optional: defaults to "free"
   }
 );
 
 console.log(result.features);        // FaceFeatures
 console.log(result.recommendations); // Recommendation[]
+console.log(result.barbershops);     // BarbershopMatchResult | undefined
 ```
