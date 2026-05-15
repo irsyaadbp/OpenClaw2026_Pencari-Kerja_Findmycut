@@ -45,7 +45,7 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Create anonymous session",
-        description: "Creates an anonymous user session. No credentials needed. Returns session cookie.",
+        description: "Creates an anonymous user session. No credentials needed. Returns session token + user. Useful for free tier users who don't want to register.",
         responses: {
           "200": {
             description: "Anonymous session created",
@@ -58,6 +58,7 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Register with email + password",
+        description: "Create a new user account with email and password. Optionally include username.",
         requestBody: {
           required: true,
           content: {
@@ -69,7 +70,8 @@ export const openApiSpec = {
         },
         responses: {
           "200": { description: "User registered", content: { "application/json": { schema: { $ref: "#/components/schemas/SessionResponse" } } } },
-          "400": { description: "Validation error" },
+          "400": { description: "Validation error (email taken, password too short)" },
+          "422": { description: "Invalid input" },
         },
       },
     },
@@ -77,6 +79,7 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Login with email + password",
+        description: "Authenticate with email and password. Returns session token.",
         requestBody: {
           required: true,
           content: {
@@ -92,25 +95,165 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/auth/sign-in/username": {
+      post: {
+        tags: ["Auth"],
+        summary: "Login with username + password",
+        description: "Authenticate with username (instead of email) and password. Requires username plugin.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["username", "password"],
+                properties: {
+                  username: { type: "string", example: "aldo" },
+                  password: { type: "string", example: "password123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Login successful", content: { "application/json": { schema: { $ref: "#/components/schemas/SessionResponse" } } } },
+          "401": { description: "Invalid credentials" },
+        },
+      },
+    },
+    "/api/auth/sign-in/social/google": {
+      get: {
+        tags: ["Auth"],
+        summary: "Login with Google OAuth",
+        description: "Redirects user to Google consent screen. After approval, Google redirects to /api/auth/callback/google which creates/links the user and sets session cookie. Use callbackURL to specify where to redirect after success.",
+        parameters: [
+          { name: "callbackURL", in: "query", required: false, schema: { type: "string", format: "uri" }, description: "Frontend URL to redirect after successful login (e.g. http://localhost:5173/)" },
+        ],
+        responses: {
+          "302": { description: "Redirect to Google consent screen" },
+        },
+      },
+    },
+    "/api/auth/callback/google": {
+      get: {
+        tags: ["Auth"],
+        summary: "Google OAuth callback (auto-handled)",
+        description: "Google redirects here after user approves. Better Auth automatically creates/links user, sets session cookie, and redirects to callbackURL. Do NOT call this manually.",
+        parameters: [
+          { name: "code", in: "query", required: true, schema: { type: "string" }, description: "Authorization code from Google" },
+          { name: "state", in: "query", required: false, schema: { type: "string" }, description: "CSRF state parameter" },
+        ],
+        responses: {
+          "302": { description: "Redirect to app with session cookie set" },
+          "400": { description: "Invalid code or state" },
+        },
+      },
+    },
     "/api/auth/get-session": {
       get: {
         tags: ["Auth"],
         summary: "Get current session",
-        description: "Returns current user session. Requires auth cookie or Authorization header.",
+        description: "Returns current user session info including user ID, name, email, tier. Requires valid session cookie or Authorization bearer token.",
         security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         responses: {
           "200": { description: "Session info", content: { "application/json": { schema: { $ref: "#/components/schemas/SessionResponse" } } } },
-          "401": { description: "Not authenticated" },
+          "401": { description: "Not authenticated (no valid session)" },
         },
       },
     },
     "/api/auth/sign-out": {
       post: {
         tags: ["Auth"],
-        summary: "Logout",
+        summary: "Logout / destroy session",
+        description: "Invalidates the current session. Clears session cookie.",
         security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         responses: {
-          "200": { description: "Logged out" },
+          "200": { description: "Session destroyed" },
+        },
+      },
+    },
+    "/api/auth/user/update": {
+      post: {
+        tags: ["Auth"],
+        summary: "Update user profile",
+        description: "Update current user's name or image. Cannot update email or tier from client.",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  name: { type: "string", example: "Aldo Updated" },
+                  image: { type: "string", format: "uri", example: "https://r2.dev/avatar.webp" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "User updated", content: { "application/json": { schema: { $ref: "#/components/schemas/UserProfile" } } } },
+          "401": { description: "Not authenticated" },
+        },
+      },
+    },
+    "/api/auth/change-password": {
+      post: {
+        tags: ["Auth"],
+        summary: "Change password",
+        description: "Change current user's password. Requires current password for verification.",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["currentPassword", "newPassword"],
+                properties: {
+                  currentPassword: { type: "string" },
+                  newPassword: { type: "string", minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Password changed" },
+          "400": { description: "Current password incorrect" },
+          "401": { description: "Not authenticated" },
+        },
+      },
+    },
+    "/api/auth/list-sessions": {
+      get: {
+        tags: ["Auth"],
+        summary: "List active sessions",
+        description: "Returns all active sessions for the current user (useful for multi-device management).",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "List of active sessions",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      token: { type: "string" },
+                      expiresAt: { type: "string", format: "date-time" },
+                      ipAddress: { type: "string" },
+                      userAgent: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Not authenticated" },
         },
       },
     },
@@ -327,9 +470,11 @@ export const openApiSpec = {
             properties: {
               id: { type: "string", format: "uuid" },
               name: { type: "string" },
-              email: { type: "string" },
+              email: { type: "string", nullable: true },
               image: { type: "string", nullable: true },
+              username: { type: "string", nullable: true },
               tier: { type: "string", enum: ["free", "pro"], default: "free" },
+              createdAt: { type: "string", format: "date-time" },
             },
           },
           session: {
@@ -337,7 +482,7 @@ export const openApiSpec = {
             properties: {
               id: { type: "string" },
               expiresAt: { type: "string", format: "date-time" },
-              token: { type: "string" },
+              token: { type: "string", description: "Use as Bearer token in Authorization header" },
             },
           },
         },
