@@ -1,4 +1,5 @@
 import { createChildLogger } from "../lib/logger";
+import { downloadAndUpload } from "../lib/r2";
 import * as analysisRepo from "../repositories/analysis.repo";
 import * as agentLogRepo from "../repositories/agent-log.repo";
 import * as recRepo from "../repositories/recommendation.repo";
@@ -11,7 +12,6 @@ let pipelineModule: any = null;
 async function loadPipeline() {
   if (!pipelineModule) {
     try {
-      // Use path.join so TypeScript can't statically follow the import
       const { join } = await import("path");
       const agentPath = join(process.cwd(), "..", "agent", "src", "pipeline.ts");
       pipelineModule = await import(agentPath);
@@ -40,7 +40,6 @@ export interface RunAgentOptions {
 export function runAgentAsync(options: RunAgentOptions): void {
   const { analysisId, imageUrls, userLatitude, userLongitude, tier } = options;
 
-  // Fire and forget — but with proper error handling
   executePipeline(analysisId, imageUrls, userLatitude, userLongitude, tier).catch(
     (err) => {
       log.error({ err, analysisId }, "Agent pipeline crashed unexpectedly");
@@ -60,17 +59,14 @@ async function executePipeline(
   log.info({ analysisId, imageCount: imageUrls.length, tier }, "🚀 Starting agent pipeline");
 
   try {
-    // Update analysis status
     await analysisRepo.updateStatus(analysisId, "processing", "vision");
 
-    // Load and run the pipeline
     const { runPipeline } = await loadPipeline();
 
     const result = await runPipeline(
       imageUrls,
       {
         onProgress: async (agent: string, step: string, message: string, toolCall?: string) => {
-          // Log every step to DB for frontend polling
           try {
             await agentLogRepo.create({
               analysisId,
@@ -80,7 +76,6 @@ async function executePipeline(
               toolCall: toolCall || undefined,
             });
 
-            // Update current agent in analysis
             if (step === "start") {
               await analysisRepo.updateStatus(analysisId, "processing", agent);
             }
@@ -98,7 +93,7 @@ async function executePipeline(
       }
     );
 
-    // Save face features to analysis
+    // Save face features
     await analysisRepo.updateFeatures(analysisId, {
       faceShape: result.features.face_shape,
       faceConfidence: result.features.face_confidence,
@@ -106,8 +101,46 @@ async function executePipeline(
       hairTexture: result.features.hair_texture,
     });
 
+    // Download Replicate generated images → save to R2 (permanent URLs)
+    log.info({ analysisId }, "⬇️ Downloading generated images to R2...");
+    const processedRecs = await Promise.all(
+      result.recommendations.map(async (rec: any) => {
+        let imageUrls: Record<string, string> = {};
+
+        // If recommendation has generated image URLs (from Replicate), download them
+        if (rec.image_urls) {
+          for (const [angle, url] of Object.entries(rec.image_urls)) {
+            if (url && typeof url === "string" && url.startsWith("http")) {
+              try {
+                const saved = await downloadAndUpload(url as string, "hairstyles");
+                imageUrls[angle] = saved.url;
+              } catch (dlErr) {
+                log.warn({ err: dlErr, angle, url }, "Failed to download image, keeping original URL");
+                imageUrls[angle] = url as string;
+              }
+            }
+          }
+        }
+
+        // If no images yet but has reference_image_url, save that too
+        if (Object.keys(imageUrls).length === 0 && rec.reference_image_url?.startsWith("http")) {
+          try {
+            const saved = await downloadAndUpload(rec.reference_image_url, "hairstyles");
+            imageUrls.front = saved.url;
+          } catch (dlErr) {
+            log.warn({ err: dlErr }, "Failed to download reference image");
+          }
+        }
+
+        return {
+          ...rec,
+          image_urls: imageUrls,
+        };
+      })
+    );
+
     // Save recommendations to DB
-    for (const rec of result.recommendations) {
+    for (const rec of processedRecs) {
       await recRepo.create({
         analysisId,
         styleName: rec.style_name,
@@ -115,13 +148,13 @@ async function executePipeline(
         barberInstruction: rec.barber_instruction,
         maintenance: rec.maintenance_tips,
         stylingTips: rec.styling_tips,
-        imageUrls: rec.image_urls || { front: rec.reference_image_url },
+        imageUrls: rec.image_urls || {},
         barbershop: result.barbershops
           ? result.barbershops.barbershops.find(
               (b: any) => b.recommended_style === rec.style_name
             ) || null
           : null,
-        isLocked: false, // Will be filtered by tier in recommendation.service
+        isLocked: false,
       });
     }
 
@@ -130,14 +163,13 @@ async function executePipeline(
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     log.info(
-      { analysisId, elapsed_s: elapsed, recommendations: result.recommendations.length },
+      { analysisId, elapsed_s: elapsed, recommendations: processedRecs.length },
       `✅ Pipeline completed in ${elapsed}s`
     );
   } catch (err: any) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     log.error({ err, analysisId, elapsed_s: elapsed }, "❌ Pipeline failed");
 
-    // Update analysis status to failed
     try {
       await analysisRepo.updateStatus(analysisId, "failed", undefined);
       await agentLogRepo.create({
