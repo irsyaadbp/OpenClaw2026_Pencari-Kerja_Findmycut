@@ -1,8 +1,10 @@
 import { chatCompletion } from "../lib/llm";
 import {
   barbershopTools,
-  handleBarbershopTool,
+  handleBarbershopToolAsync,
   loadBarbershopData,
+  setBarbershopDbClient,
+  setGoogleMapsConfig,
 } from "../tools/barbershop-tools";
 import barbershopData from "../knowledge/barbershops.json";
 import type { Recommendation, BarbershopMatchResult } from "../types";
@@ -34,8 +36,29 @@ export async function runBarbershopAgent(
   userLatitude?: number,
   userLongitude?: number
 ): Promise<BarbershopMatchResult | null> {
-  // Load barbershop dataset
+  // Load barbershop dataset (JSON fallback)
   loadBarbershopData(barbershopData as any);
+
+  // Configure Google Maps if env vars available
+  // Agent runs in Bun process — env vars inherited from backend
+  const env = (globalThis as any).process?.env || {};
+  const mapsKey = env.GOOGLE_MAPS_API_KEY;
+  const mapsRadius = parseInt(env.GOOGLE_MAPS_RADIUS || "5000");
+  if (mapsKey) {
+    setGoogleMapsConfig(mapsKey, mapsRadius);
+  }
+
+  // Configure DB client if DATABASE_URL available
+  const dbUrl = env.DATABASE_URL;
+  if (dbUrl) {
+    try {
+      const mod = await import("@neondatabase/serverless" as any);
+      const sql = mod.neon(dbUrl);
+      setBarbershopDbClient(sql);
+    } catch {
+      // DB not available — will use JSON fallback
+    }
+  }
 
   // If no location provided, skip this agent
   if (!userLatitude || !userLongitude) {
@@ -77,7 +100,7 @@ Find the best nearby barbershops that match these styles. Search within 10km rad
       for (const call of toolCalls) {
         const fnName = call.function.name;
         const args = JSON.parse(call.function.arguments);
-        const result = handleBarbershopTool(fnName, args);
+        const result = await handleBarbershopToolAsync(fnName, args);
         currentMessages.push({
           role: "tool" as any,
           tool_call_id: call.id,
