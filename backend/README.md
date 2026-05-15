@@ -1,336 +1,308 @@
 # FindMyCut — Backend API
 
-Hono HTTP server with Better Auth + Drizzle ORM + Neon PostgreSQL. Handles auth, file uploads, analysis orchestration, recommendations, and DOKU payment integration.
+> **Hackathon:** OpenClaw Agenthon Indonesia 2026 | **Team:** Pencari Kerja
+
+## What is this folder?
+
+This is the **REST API server** that powers the entire FindMyCut platform. It handles user authentication, photo uploads, orchestrates the AI agent pipeline, stores results, manages tier-based access control, and processes payments via DOKU.
+
+The backend does NOT contain AI logic directly — it imports and runs the agent pipeline from the `/agent` folder as an async background process.
 
 ---
 
-## Architecture
+## Tech Stack
 
-Simple Layered Pattern:
+| Component | Technology | Why |
+|-----------|-----------|-----|
+| Runtime | Bun | Fast startup, native TypeScript, built-in test runner |
+| Framework | Hono | Lightweight, fast, middleware-based (like Express but modern) |
+| Language | TypeScript | Type safety across the entire codebase |
+| Database | Neon PostgreSQL | Serverless Postgres, scales to zero, branching support |
+| ORM | Drizzle ORM | Type-safe queries, lightweight, great DX |
+| Auth | Better Auth | Multi-method auth (anonymous, email, Google OAuth) out of the box |
+| Storage | Cloudflare R2 | S3-compatible, no egress fees, global CDN |
+| Image Processing | Sharp | Convert uploads to WebP, resize to max 1080px |
+| Payment | DOKU Checkout | Indonesian payment gateway (QRIS, VA, e-wallet) |
+| Logging | Pino | Structured JSON logs, pretty-print in dev |
+| API Docs | Swagger UI | Interactive API documentation at `/docs` |
 
-```
-HTTP Request
-    ↓
-Route (validasi input, parse request)
-    ↓
-Service (business logic, orchestration)
-    ↓
-Repository (Drizzle queries → Neon PostgreSQL)
+---
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+bun install
+
+# 2. Set up environment
+cp .env.example .env
+# Fill in: DATABASE_URL, BETTER_AUTH_SECRET, R2 keys, DOKU keys, etc.
+
+# 3. Create database tables
+bunx drizzle-kit push
+
+# 4. Start development server (hot reload)
+bun run dev
+
+# Server runs at http://localhost:3000
+# Swagger UI at http://localhost:3000/docs
 ```
 
 ---
 
-## API Endpoints
+## Architecture — How Everything Connects
 
-### Health
 ```
-GET /health → { status: "ok", service: "findmycut-api" }
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SYSTEM ARCHITECTURE                          │
+│                                                                     │
+│  ┌──────────┐     ┌──────────────────────────────────────────┐      │
+│  │  React   │────→│  Hono Server (port 3000)                 │      │
+│  │  Frontend│←────│                                          │      │
+│  │  :5173   │     │  Middleware Stack:                       │      │
+│  └──────────┘     │  1. CORS (allow :5173)                   │      │
+│                   │  2. Pino Logger (structured logs)        │      │
+│                   │  3. Rate Limiter (10 req/min per IP)     │      │
+│                   │  4. Auth Middleware (extract session)    │      │
+│                   │                                          │      │
+│                   │  Routes → Services → Repositories        │      │
+│                   └──────┬───────────┬───────────┬───────────┘      │
+│                          │           │           │                  │
+│                          ↓           ↓           ↓                  │
+│                   ┌──────────┐ ┌──────────┐ ┌──────────────┐        │
+│                   │ Neon DB  │ │Cloudflare│ │Agent Pipeline│        │
+│                   │(Drizzle) │ │   R2     │ │ (5 AI agents)│        │
+│                   │          │ │(images)  │ │  see /agent  │        │
+│                   │ Tables:  │ │          │ │              │        │
+│                   │ -user    │ │ Folders: │ │ GLM-5-Turbo  │        │
+│                   │ -session │ │ -photos/ │ │ + Replicate  │        │
+│                   │ -analyses│ │ -hair-   │ │ flux-2-pro   │        │
+│                   │ -recs    │ │  styles/ │ │              │        │
+│                   │ -payments│ │          │ │              │        │
+│                   │ -logs    │ │          │ │              │        │
+│                   └──────────┘ └──────────┘ └──────────────┘        │
+│                                                                     │
+│                   ┌──────────┐ ┌──────────┐                         │
+│                   │  DOKU    │ │  Google  │                         │
+│                   │ Payment  │ │  OAuth   │                         │
+│                   │(checkout)│ │(sign-in) │                         │
+│                   └──────────┘ └──────────┘                         │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Auth (`/api/auth` — Better Auth managed)
+---
 
-All auth endpoints are auto-generated by Better Auth:
+## Complete User Flow (End-to-End)
 
+```
+┌─ USER JOURNEY ──────────────────────────────────────────────────────┐
+│                                                                     │
+│  1. SIGN IN                                                         │
+│     POST /api/auth/sign-in/anonymous                                │
+│     → Creates anonymous user (tier: "free")                         │
+│     → Returns session cookie                                        │
+│                                                                     │
+│  2. UPLOAD SELFIE                                                   │
+│     POST /api/v1/uploads (multipart file or base64)                 │
+│     → Sharp converts to WebP (max 1080px, quality 80)               │
+│     → Uploads to Cloudflare R2                                      │
+│     → Returns: { url: "https://r2.dev/photos/uuid.webp" }           │
+│                                                                     │
+│  3. TRIGGER ANALYSIS                                                │
+│     POST /api/v1/analyses { user_id, image_url }                    │
+│     → Creates analysis record (status: "processing")                │
+│     → Spawns agent pipeline in background (non-blocking)            │
+│     → Returns immediately: { analysis_id, status: "processing" }    │
+│                                                                     │
+│  4. POLL PROGRESS (FE polls every 2-3 seconds)                      │
+│     GET /api/v1/analyses/:id/status                                 │
+│     → Returns: { status, current_agent, progress[] }                │
+│     → progress[] shows real-time agent steps:                       │
+│       "🔧 Memanggil analyze_image..."                               │
+│       "✅ face_shape: oval (85%)"                                   │
+│       "🔧 Memanggil generate_hairstyle_image..."                    │
+│                                                                     │
+│  5. GET RESULTS (after status = "completed")                        │
+│     GET /api/v1/analyses/:id/recommendations                        │
+│     → Checks user tier from session                                 │
+│     → Free: 1 unlocked + rest locked (sorted lowest first)          │
+│     → Pro: all unlocked (sorted highest first)                      │
+│     → Returns recommendations with images, barber instructions      │
+│                                                                     │
+│  6. UPGRADE TO PRO (optional)                                       │
+│     POST /api/v1/payments/checkout { user_id }                      │
+│     → Creates DOKU checkout session (Rp15.000)                      │
+│     → Returns: { checkout_url }                                     │
+│     → FE redirects to DOKU payment page                             │
+│     → User pays via QRIS/VA/e-wallet                                │
+│     → DOKU webhook → POST /api/v1/payments/webhook                  │
+│     → Backend verifies signature, updates tier to "pro"             │
+│     → FE refetches recommendations → all unlocked!                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## API Endpoints (19 total)
+
+### Health & Documentation
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/sign-up/email` | Register with username + password |
-| POST | `/sign-in/email` | Login with email + password |
-| POST | `/sign-in/username` | Login with username |
-| POST | `/sign-in/anonymous` | Create anonymous session |
-| GET | `/sign-in/social/google` | Google OAuth redirect |
-| GET | `/callback/google` | Google OAuth callback |
-| POST | `/sign-out` | Logout |
-| GET | `/get-session` | Get current session info |
+| GET | `/health` | Server health check → `{ status: "ok" }` |
+| GET | `/docs` | Swagger UI (interactive API docs) |
+| GET | `/docs/openapi.json` | Raw OpenAPI 3.0 spec |
 
-### Users (`/api/v1/users`)
+### Authentication (`/api/auth/*` — Better Auth)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/sign-in/anonymous` | Create anonymous session (no credentials needed) |
+| POST | `/api/auth/sign-up/email` | Register with name + email + password |
+| POST | `/api/auth/sign-in/email` | Login with email + password |
+| POST | `/api/auth/sign-in/username` | Login with username + password |
+| POST | `/api/auth/sign-in/social` | Google OAuth → `{ provider: "google", callbackURL }` |
+| GET | `/api/auth/get-session` | Get current user + session info |
+| POST | `/api/auth/sign-out` | Destroy session |
+| GET | `/api/auth/callback/google` | Google OAuth callback (internal) |
 
-| Method | Path | Response |
-|--------|------|----------|
-| GET | `/me` | `{ id, name, email, image }` (requires session) |
-
-### Uploads (`/api/v1/uploads`)
-
+### Core API (`/api/v1/*`)
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/` | multipart `file` | `{ id, url }` |
-
-Uploads image to Cloudflare R2. Returns public URL.
-
-### Analyses (`/api/v1/analyses`)
-
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| POST | `/` | `{ user_id, image_url?, image_urls?, latitude?, longitude?, tier? }` | `{ analysis_id, status: "processing" }` (202) |
-| GET | `/:id/status` | — | `{ analysis_id, status, current_agent, progress[] }` |
-
-Creates analysis and triggers agent pipeline (async, non-blocking). Supports single `image_url` or multiple `image_urls[]`. Optional `latitude`/`longitude` enables barbershop finder. Optional `tier` (default: "free").
-
-### Recommendations (`/api/v1/analyses`)
-
-| Method | Path | Response |
-|--------|------|----------|
-| GET | `/:id/recommendations` | Tier-gated recommendations |
-
-**Free tier response:**
-```json
-{
-  "tier": "free",
-  "data": [
-    {
-      "name": "French Crop",
-      "match": 80,
-      "image": [{ "type": "Front", "url": "..." }],
-      "barbershop": { "instruction": "...", "maintenance": "...", "location": null },
-      "is_locked": false
-    },
-    {
-      "name": "Crew Cut",
-      "match": 90,
-      "image": [],
-      "barbershop": null,
-      "is_locked": true
-    }
-  ]
-}
-```
-
-**Pro tier response:**
-```json
-{
-  "tier": "pro",
-  "data": [
-    {
-      "name": "Buzz Cut",
-      "match": 100,
-      "image": [
-        { "type": "Front", "url": "..." },
-        { "type": "Side", "url": "..." },
-        { "type": "Back", "url": "..." },
-        { "type": "Top", "url": "..." }
-      ],
-      "barbershop": {
-        "instruction": "Sides: #1.5 blended to #3...",
-        "maintenance": "Trim every 4-5 weeks...",
-        "location": null
-      },
-      "is_locked": false
-    }
-  ]
-}
-```
-
-### Payments (`/api/v1/payments`)
-
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| POST | `/checkout` | `{ user_id, analysis_id? }` | `{ checkout_url, transaction_id }` |
-| POST | `/webhook` | DOKU callback | `{ status: "success" }` |
+| GET | `/api/v1/users/me` | — | `{ id, name, email, image }` |
+| POST | `/api/v1/uploads` | file (multipart) or `{ image_base64 }` | `{ id, url, width, height }` |
+| POST | `/api/v1/analyses` | `{ user_id, image_url, latitude?, longitude? }` | `{ analysis_id, status }` (202) |
+| GET | `/api/v1/analyses/:id/status` | — | `{ status, current_agent, progress[] }` |
+| GET | `/api/v1/analyses/:id/recommendations` | — | `{ tier, data: Recommendation[] }` |
+| POST | `/api/v1/payments/checkout` | `{ user_id }` | `{ checkout_url, transaction_id }` |
+| POST | `/api/v1/payments/webhook` | DOKU payload | `{ status: "success" }` |
 
 ---
 
-## Database Schema
+## Database Schema (9 tables)
 
-### Managed by Better Auth (auto-created)
-- `user` — id, name, email, emailVerified, image, tier, createdAt, updatedAt
-- `session` — id, userId, token, expiresAt, ipAddress, userAgent
-- `account` — id, userId, providerId, accountId, accessToken, refreshToken
+```sql
+-- Better Auth managed (auto-created)
+user          → id, name, email, tier, isAnonymous, createdAt
+session       → id, userId, token, expiresAt, ipAddress
+account       → id, userId, providerId, accessToken, password
+verification  → id, identifier, value, expiresAt
 
-### Managed by Drizzle ORM
-- `analyses` — user_id, image_url, face_shape, hair_texture, status, current_agent
-- `recommendations` — analysis_id, style_name, match_score, image_urls, barbershop, is_locked
-- `agent_logs` — analysis_id, agent_name, step, message, tool_call, reasoning
-- `payments` — user_id, invoice_number, amount, tier, status, doku_session_id
-- `hairstyle_embeddings` — style_name, suitable_face_shapes, suitable_hair_types, embedding
+-- Application tables (Drizzle ORM)
+analyses      → id, userId, imageUrl, faceShape, faceConfidence,
+                hairDensity, hairTexture, status, currentAgent
+recommendations → id, analysisId, styleName, matchScore,
+                  barberInstruction, maintenance, stylingTips,
+                  imageUrls (JSONB), barbershop (JSONB), isLocked
+agent_logs    → id, analysisId, agentName, step, message,
+                toolCall, reasoning, createdAt
+payments      → id, userId, invoiceNumber, amount, tier, status,
+                dokuSessionId, paymentMethod, paidAt
+barbershop_cache → id, name, lat, lng, rating, specialties,
+                   areaKey, source, fetchedAt (TTL: 7 days)
+```
+
+---
+
+## Tier System — How Access Control Works
+
+The same AI pipeline runs for both free and pro users. The difference is in **how results are presented**:
+
+| Feature | Free (Rp0) | Pro (Rp15.000 one-time) |
+|---------|-----------|-------------------------|
+| Recommendations shown | 1 clear + rest locked | All unlocked |
+| Generated images | 1 (front view, top pick) | 1 (front view, top pick) |
+| Barber instructions | Only for #1 | All visible |
+| Styling tips | Only for #1 | All visible |
+| Barbershop info | Locked | Unlocked |
+| Sort order | Lowest match first (hook) | Highest match first |
+
+**Implementation:** `recommendation.service.ts` checks `userRepo.getTier(userId)` and filters response accordingly.
 
 ---
 
 ## File Structure
 
 ```
-backend/src/
-├── index.ts               # Hono server + graceful shutdown + health checks
-├── types.ts               # Shared TypeScript interfaces
-├── routes/
-│   ├── auth.ts            # Better Auth handler (mounts all /api/auth/*)
-│   ├── users.ts           # GET /me
-│   ├── uploads.ts         # POST /uploads
-│   ├── analyses.ts        # POST /analyses, GET /:id/status
-│   ├── recommendations.ts # GET /:id/recommendations
-│   └── payments.ts        # POST /payments/checkout, /webhook
-├── services/
-│   ├── user.service.ts    # User context helpers
-│   ├── auth.service.ts    # Auth docs (Better Auth handles logic)
-│   ├── upload.service.ts  # R2 upload wrapper
-│   ├── analysis.service.ts # Create analysis, log agent steps
-│   ├── recommendation.service.ts # Tier-gated recommendations
-│   ├── payment.service.ts # DOKU checkout + webhook
-│   └── agent-runner.service.ts # Async pipeline integration
-├── repositories/
-│   ├── user.repo.ts       # Raw SQL for Better Auth user table
-│   ├── analysis.repo.ts   # Analyses CRUD
-│   ├── agent-log.repo.ts  # Agent logs CRUD
-│   ├── recommendation.repo.ts # Recommendations CRUD + unlock
-│   └── payment.repo.ts    # Payments CRUD
-├── lib/
-│   ├── auth.ts            # Better Auth config (username, anonymous, Google)
-│   ├── schema.ts          # Drizzle schema (users managed by Better Auth)
-│   ├── db.ts              # Neon PostgreSQL (neon-http)
-│   ├── r2.ts              # Cloudflare R2 upload (S3-compatible)
-│   ├── doku.ts            # DOKU Checkout API client
-│   ├── rate-limit.ts      # In-memory rate limiter
-│   ├── logger.ts          # Pino logger (pino-pretty in dev)
-│   └── healthcheck.ts     # Startup health diagnostics
-└── middleware/
-    ├── auth.ts            # Better Auth session extraction
-    └── rate-limit.ts      # Rate limit middleware
+backend/
+├── src/
+│   ├── index.ts                    # Hono server entry point
+│   │                                 - Middleware stack (CORS, rate limit, auth)
+│   │                                 - Route mounting
+│   │                                 - Startup health checks
+│   │                                 - Graceful shutdown (SIGTERM/SIGINT)
+│   ├── routes/
+│   │   ├── auth.ts                 # Better Auth handler (all /api/auth/*)
+│   │   ├── users.ts               # GET /me (session-based)
+│   │   ├── uploads.ts             # POST / (multipart + base64 support)
+│   │   ├── analyses.ts            # POST / + GET /:id/status
+│   │   ├── recommendations.ts     # GET /:id/recommendations (tier-filtered)
+│   │   └── payments.ts            # POST /checkout + POST /webhook
+│   ├── services/
+│   │   ├── agent-runner.service.ts # Async pipeline orchestration
+│   │   │                            - Dynamic imports agent/src/pipeline.ts
+│   │   │                            - Logs progress to agent_logs table
+│   │   │                            - Downloads generated images → R2
+│   │   │                            - Saves recommendations to DB
+│   │   ├── analysis.service.ts     # Create analysis, get status + logs
+│   │   ├── recommendation.service.ts # Tier-based filtering logic
+│   │   ├── payment.service.ts      # DOKU checkout + webhook handling
+│   │   └── upload.service.ts       # R2 upload wrapper
+│   ├── repositories/               # Database queries (Drizzle)
+│   │   ├── analysis.repo.ts
+│   │   ├── recommendation.repo.ts
+│   │   ├── agent-log.repo.ts
+│   │   ├── payment.repo.ts
+│   │   └── user.repo.ts           # Raw SQL for Better Auth user table
+│   ├── middleware/
+│   │   ├── auth.ts                 # Extract session, set userId on context
+│   │   └── rate-limit.ts          # IP-based rate limiting
+│   └── lib/
+│       ├── auth.ts                 # Better Auth config (3 auth methods)
+│       ├── schema.ts              # All Drizzle table definitions
+│       ├── db.ts                  # Neon connection (neon-http driver)
+│       ├── r2.ts                  # S3 client + Sharp image processing
+│       ├── doku.ts                # DOKU Checkout API + signature verification
+│       ├── swagger.ts             # OpenAPI 3.0 spec (all endpoints documented)
+│       ├── rate-limit.ts          # In-memory rate limiter (Map-based)
+│       ├── logger.ts              # Pino logger config
+│       └── healthcheck.ts         # Startup diagnostics (7 services checked)
+├── drizzle/                        # SQL migration files
+├── docs/plans/                     # Architecture docs, ERD, timeline
+├── .env.example                    # All environment variables documented
+└── package.json                    # Scripts: dev, start, check, db:generate, db:migrate
 ```
 
 ---
 
-## Logging (Pino)
+## Key Design Decisions
 
-Structured logging with Pino:
-- **Development:** Colorized, human-readable via `pino-pretty`
-- **Production:** JSON structured logs
-
-```
-[14:30:05] INFO (server): 🚀 Starting FindMyCut API...
-[14:30:05] INFO (healthcheck): ✅ neon-postgres: Connected (45ms)
-[14:30:05] INFO (healthcheck): ✅ better-auth: Secret configured
-[14:30:06] INFO (healthcheck): ✅ replicate: API reachable (120ms)
-[14:30:06] INFO (healthcheck): ⏭️  google-maps: Not configured (optional)
-[14:30:06] INFO (server): 🔥 FindMyCut API running on http://localhost:3000
-```
+| Decision | Rationale |
+|----------|-----------|
+| **Async pipeline** | Analysis returns 202 immediately; AI runs in background. User sees real-time progress via polling. |
+| **Dynamic agent import** | Backend imports agent code at runtime — allows independent development of agent logic. |
+| **Tier filtering at response time** | Same pipeline runs for all users; output filtered based on tier. No wasted compute. |
+| **Image → WebP conversion** | All uploads converted to WebP (max 1080px). Reduces storage cost and load time by ~60-80%. |
+| **Graceful degradation** | If any agent fails, pipeline continues. If image download fails, recommendations still saved. |
+| **500ms completion delay** | Ensures all async progress callbacks finish before setting "completed" status. |
+| **Structured logging** | Every agent step logged with agent name, step type, message — enables live progress UI. |
+| **In-memory rate limit** | Simple Map-based limiter. Good enough for hackathon; swap to Redis for production. |
 
 ---
 
 ## Startup Health Checks
 
-On startup, the server verifies all external dependencies:
-
-| Service | Critical | What it checks |
-|---------|----------|----------------|
-| Neon PostgreSQL | ✅ | `SELECT 1` query |
-| Better Auth | ✅ | Secret length ≥ 32 |
-| Replicate | ❌ | `GET /v1/account` API |
-| MiMo LLM | ❌ | Env vars present |
-| Cloudflare R2 | ❌ | All R2 env vars present |
-| DOKU Payment | ❌ | Credentials present |
-| Google Maps | ❌ | API key present (optional) |
-
-If a **critical** service (Neon, Better Auth) fails, the server aborts startup.
-
----
-
-## Graceful Shutdown
-
-Production-grade shutdown handler:
+On boot, the server verifies all external dependencies before accepting traffic:
 
 ```
-SIGTERM/SIGINT received
-    ↓
-Stop accepting new connections
-    ↓
-Wait 5s for in-flight requests
-    ↓
-Close database connections
-    ↓
-Clean up external clients
-    ↓
-Exit (or force exit after 10s timeout)
+[14:30:05] ✅ neon-postgres: Connected (45ms)
+[14:30:05] ✅ better-auth: Secret configured
+[14:30:06] ✅ replicate: API reachable (120ms)
+[14:30:06] ✅ mimo-llm: Configured
+[14:30:06] ✅ cloudflare-r2: Bucket: findmycut
+[14:30:06] ✅ doku-payment: Credentials configured
+[14:30:06] ✅ google-maps: API key configured
+[14:30:06] 🔥 FindMyCut API running on http://localhost:3000
+[14:30:06] 📖 Swagger: http://localhost:3000/docs
 ```
 
-Also handles `uncaughtException` and `unhandledRejection`.
-
----
-
-## Environment Variables
-
-See `.env.example` for template. All variables:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PORT` | No | Server port (default: 3000) |
-| `CORS_ORIGIN` | No | CORS origin (default: *) |
-| `BETTER_AUTH_SECRET` | **Yes** | Auth secret (min 32 chars) |
-| `BETTER_AUTH_URL` | **Yes** | Public URL for auth callbacks |
-| `DATABASE_URL` | **Yes** | Neon PostgreSQL connection string |
-| `MAIN_LLM_BASE_URL` | **Yes** | MiMo API endpoint |
-| `MAIN_LLM_API_KEY` | **Yes** | MiMo API key |
-| `MAIN_LLM_MODEL` | **Yes** | Model name (mimo-v2.5-pro) |
-| `REPLICATE_API_TOKEN` | **Yes** | Replicate API token |
-| `REPLICATE_VISION_MODEL` | No | Vision model (default: lucataco/moondream2) |
-| `REPLICATE_IMAGEGEN_MODEL` | No | Image gen model (default: black-forest-labs/flux-2-pro) |
-| `R2_ACCOUNT_ID` | **Yes** | Cloudflare account ID |
-| `R2_ACCESS_KEY_ID` | **Yes** | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | **Yes** | R2 secret key |
-| `R2_BUCKET_NAME` | **Yes** | R2 bucket name |
-| `R2_PUBLIC_URL` | **Yes** | R2 public URL |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `GOOGLE_MAPS_API_KEY` | No | Google Maps API key (Agent 5) |
-| `DOKU_CLIENT_ID` | **Yes** | DOKU merchant client ID |
-| `DOKU_SECRET_KEY` | **Yes** | DOKU secret key |
-| `RATE_LIMIT_MAX_REQUESTS` | No | Max requests per window (default: 10) |
-| `RATE_LIMIT_WINDOW_MS` | No | Rate limit window (default: 60000) |
-| `LOG_LEVEL` | No | Log level (default: debug in dev, info in prod) |
-| `NODE_ENV` | No | Environment (development/production) |
-
----
-
-## Tier Access Control
-
-| Feature | Free | Pro (Rp15.000) |
-|---------|------|----------------|
-| Photo upload | 1 (front only) | 4 (all angles) |
-| Agent pipeline | Full (5 agents) | Full (5 agents) |
-| Recommendations | 1 unlocked + 5 locked | All 6 unlocked |
-| Generated images | Front only | All angles |
-| Barber instructions | Locked | Unlocked |
-| Styling tips | Locked | Unlocked |
-| Barbershop finder | Locked | Unlocked |
-| Sort order | Lowest match first | Highest match first |
-
----
-
-## DOKU Payment Flow
-
-```
-1. User clicks "Upgrade to Pro"
-2. FE → POST /api/v1/payments/checkout { user_id }
-3. Backend creates payment record + DOKU checkout
-4. DOKU returns checkout_url
-5. FE redirects user to DOKU payment page
-6. User pays (VA/QRIS/CC/e-wallet)
-7. DOKU webhook → POST /api/v1/payments/webhook
-8. Backend verifies signature, updates user tier to "pro"
-9. Recommendations unlocked
-```
-
----
-
-## Running
-
-```bash
-# Install dependencies
-bun install
-
-# Copy env template
-cp .env.example .env
-# Edit .env with your credentials
-
-# Generate Drizzle migrations
-bun run db:generate
-
-# Push schema to database
-bunx drizzle-kit push
-
-# Development (with hot reload + pretty logs)
-bun run dev
-
-# Production
-bun run start
-
-# TypeScript check
-bun run check
-```
+If **critical** services (Neon DB, Better Auth) fail → server aborts startup.

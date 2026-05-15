@@ -1,285 +1,243 @@
-# FindMyCut — Agent Workspace
+# FindMyCut — AI Agent Pipeline
 
-Multi-agent AI pipeline for haircut recommendation. 5 agents run sequentially, each with **autonomous tool-calling loops** and **self-correction capabilities**. Agent 4 (Image Gen) and Agent 5 (Barbershop Finder) are optional — the pipeline continues even if they fail.
+> **Hackathon:** OpenClaw Agenthon Indonesia 2026 | **Team:** Pencari Kerja
 
----
+## What is this folder?
 
-## How It Works
+This folder contains the **AI brain** of FindMyCut — a multi-agent system that takes a user's selfie photo and autonomously determines the best hairstyle recommendations. It runs as a pipeline of 5 specialized AI agents, each with its own reasoning loop, tools, and decision-making capabilities.
 
-```
-📸 User Photos → Agent Pipeline → 📊 Recommendations + 📍 Barbershops
-```
-
-The pipeline consists of 5 specialized AI agents that communicate via structured JSON. Each agent has its own system prompt, tool definitions, and autonomous reasoning loop with **real-time progress logging**.
+The agent pipeline is **imported and executed by the backend** (`/backend/src/services/agent-runner.service.ts`) as an async background process. It is NOT a standalone server — it's a library that the backend calls.
 
 ---
 
-## Key Features
+## Tech Stack
 
-- **5 Autonomous Agents** — each with independent tool-calling loops
-- **LLM-Powered Reasoning** — agents think, decide, and explain using AI
-- **Self-Validation** — Ranker Agent validates its own recommendations before finalizing
-- **Hybrid Knowledge** — DB-first queries with JSON fallback
-- **Real-time Logging** — every thought, tool call, and result logged to `agent_logs` table
-- **Error Recovery** — agents retry with different approaches on failure
-- **Personalized Explanations** — LLM generates unique, personal reasons for each user
-
----
-
-## Agent Pipeline Flow
-
-```
-Photo URLs (1-4)
-      ↓
-┌─────────────────────────────────────┐
-│  🔍 Agent 1: Vision Analyzer        │
-│  API: Replicate moondream2          │
-│  Tools: analyze_image, merge        │
-│  Output: FaceFeatures JSON          │
-│  Iterations: 2-6                    │
-└──────────────┬──────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│  🎨 Agent 2: Style Matcher          │
-│  API: MiMo (OpenAI-compatible)      │
-│  Tools: query_face_shape,           │
-│         query_compatibility,        │
-│         get_style_details,          │
-│         list_all_styles             │
-│  Data: DB (hairstyle_embeddings)    │
-│        + JSON fallback              │
-│  Output: StyleCandidate[]           │
-│  Iterations: 8-15                   │
-└──────────────┬──────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│  ⭐ Agent 3: Ranker & Explainer     │
-│  API: MiMo (OpenAI-compatible)      │
-│  4-Phase Autonomous Workflow:       │
-│    Phase 1: Score (calculate_score) │
-│    Phase 2: Explain (LLM-generated) │
-│    Phase 3: Validate (self-check)   │
-│    Phase 4: Final ranked output     │
-│  Tools: calculate_match_score,      │
-│         generate_explanation,       │
-│         validate_recommendation     │
-│  Output: Recommendation[]           │
-│  Iterations: 12-20                  │
-└──────────────┬──────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│  🖼️ Agent 4: Image Generator        │  ← optional
-│  API: Replicate FLUX-2-pro          │
-│  Tools: generate_hairstyle_image    │
-│  Output: image URLs → R2            │
-│  Iterations: 3-12                   │
-└──────────────┬──────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│  📍 Agent 5: Barbershop Finder      │  ← optional, pro-only
-│  API: MiMo (tool calling)           │
-│  Tools: search_nearby,              │
-│         get_details,                │
-│         calculate_distance          │
-│  Data: DB cache → Google Maps API   │
-│        → JSON fallback              │
-│  Output: top 3 barbershops nearby   │
-│  Iterations: 3-6                    │
-└─────────────────────────────────────┘
-```
-
-**Total tool calls per pipeline: ~30-50** (demonstrates strong autonomous agent behavior)
+| Component | Technology |
+|-----------|-----------|
+| Vision AI | Z.AI GLM-5-Turbo via Anthropic SDK (multimodal image understanding) |
+| Reasoning LLM | Z.AI GLM-5-Turbo via Anthropic SDK (tool calling + reasoning) |
+| Image Generation | Replicate `black-forest-labs/flux-2-pro` |
+| Runtime | Bun + TypeScript |
+| Agent Framework | Custom-built autonomous loop (`runner.ts`) |
+| Knowledge Base | Local JSON files + Neon PostgreSQL (hybrid strategy) |
 
 ---
 
-## Agent Details
+## How It Works — Detailed Flow
 
-### Agent 1: Vision Analyzer
+When a user uploads a selfie and triggers analysis, the backend calls `runPipeline()` from this folder. Here's exactly what happens:
 
-**Purpose:** Analyze user photos and extract facial/hair features as structured data.
-
-**API:** Replicate `lucataco/moondream2` (vision language model)
-
-**Tools:**
-
-| Tool | Input | Output |
-|------|-------|--------|
-| `analyze_image` | `{ image_url, angle }` | Face shape, hair thickness, texture, hairline, jawline, etc. |
-| `merge_analyses` | `{ analyses[] }` | Merged FaceFeatures using majority vote |
-
-**Autonomous Loop:**
 ```
-Iteration 1: Call analyze_image(photo_1, "depan")
-Iteration 2: Call analyze_image(photo_2, "kanan")   [pro only]
-Iteration 3: Call analyze_image(photo_3, "kiri")    [pro only]
-Iteration 4: Call analyze_image(photo_4, "belakang") [pro only]
-Iteration 5: Call merge_analyses(all_results)
-→ Return FaceFeatures JSON
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         FULL PIPELINE FLOW                              │
+│                                                                         │
+│  INPUT: Photo URL(s) from Cloudflare R2                                 │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ AGENT 1: Vision Analyzer                                        │    │
+│  │                                                                 │    │
+│  │ 1. Receives photo URL                                           │    │
+│  │ 2. LLM decides to call analyze_image tool                       │    │
+│  │ 3. Tool sends photo to GLM-5-Turbo multimodal endpoint          │    │
+│  │ 4. GLM-5-Turbo "sees" the photo and returns structured JSON:    │    │
+│  │    { face_shape: "oval", hair_texture: "straight", ... }        │    │
+│  │ 5. If multiple photos: LLM calls merge_analyses to combine      │    │
+│  │ 6. Returns final FaceFeatures                                   │    │
+│  │                                                                 │    │
+│  │ Output: { face_shape, face_confidence, hair_thickness,          │    │
+│  │           hair_texture, hairline, jawline, forehead_size }      │    │
+│  └──────────────────────────────┬──────────────────────────────────┘    │
+│                                 ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ AGENT 2: Knowledge / Style Matcher                              │    │
+│  │                                                                 │    │
+│  │ 1. Receives FaceFeatures from Agent 1                           │    │
+│  │ 2. LLM calls query_face_shape_guide("oval")                     │    │
+│  │    → Returns recommended styles for oval face                   │    │
+│  │ 3. For each style, LLM calls query_hair_compatibility           │    │
+│  │    → Checks if style works with user's hair type                │    │
+│  │ 4. For compatible styles, LLM calls get_style_details           │    │
+│  │    → Gets full barber instructions, styling tips                │    │
+│  │ 5. Returns list of compatible candidates                        │    │
+│  │                                                                 │    │
+│  │ Data sources (hybrid):                                          │    │
+│  │   - Primary: PostgreSQL hairstyle_embeddings table              │    │
+│  │   - Fallback: Local JSON (face-shapes.json, styles.json)        │    │
+│  │                                                                 │    │
+│  │ Guarantee: If LLM fails, fallback returns 3-6 candidates        │    │
+│  │                                                                 │    │
+│  │ Output: StyleCandidate[] (3-6 hairstyles with full details)     │    │
+│  └──────────────────────────────┬──────────────────────────────────┘    │
+│                                 ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ AGENT 3: Ranker & Explainer                                     │    │
+│  │                                                                 │    │
+│  │ 1. Receives FaceFeatures + StyleCandidates                      │    │
+│  │ 2. For each candidate, LLM calls calculate_match_score          │    │
+│  │    → Weighted scoring: face 25% + hair 15% + thickness 10%      │    │
+│  │ 3. Sorts by score, picks top 3                                  │    │
+│  │ 4. For top 3, LLM calls generate_explanation                    │    │
+│  │    → This tool INTERNALLY calls LLM again to write a personal   │    │
+│  │      explanation in Indonesian (not a template!)                │    │
+│  │ 5. For top 3, LLM calls validate_recommendation                 │    │
+│  │    → Self-checks: is score consistent with features?            │    │
+│  │    → Removes any that fail validation                           │    │
+│  │ 6. Returns final ranked JSON                                    │    │
+│  │                                                                 │    │
+│  │ Guarantee: If LLM parse fails, builds recommendations from      │    │
+│  │            candidates directly (never returns 0)                │    │
+│  │                                                                 │    │
+│  │ Output: Recommendation[] (top 3 with scores + explanations)     │    │
+│  └──────────────────────────────┬──────────────────────────────────┘    │
+│                                 ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ AGENT 4: Image Generator                                        │    │
+│  │                                                                 │    │
+│  │ 1. Receives top 1 recommendation                                │    │
+│  │ 2. LLM calls generate_hairstyle_image tool                      │    │
+│  │ 3. Tool builds prompt: "Professional photo of man with          │    │
+│  │    [style name] haircut, studio lighting, front view"           │    │
+│  │ 4. Calls Replicate flux-2-pro API → generates image             │    │
+│  │ 5. Returns image URL (replicate.delivery/...)                   │    │
+│  │ 6. URL is captured and mapped back to recommendation            │    │
+│  │                                                                 │    │
+│  │ After pipeline: Backend downloads image → converts to WebP      │    │
+│  │                 → uploads to Cloudflare R2 (permanent URL)      │    │
+│  │                                                                 │    │
+│  │ Output: recommendation.image_urls.front = R2 URL                │    │
+│  └──────────────────────────────┬──────────────────────────────────┘    │
+│                                 ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ AGENT 5: Barbershop Finder (optional — needs user location)     │    │
+│  │                                                                 │    │
+│  │ Skipped if no lat/lng provided.                                 │    │
+│  │                                                                 │    │
+│  │ 1. Receives recommendations + user coordinates                  │    │
+│  │ 2. LLM calls search_nearby_barbershops(lat, lng, radius)        │    │
+│  │    → Hybrid: DB cache → Google Maps API → JSON fallback         │    │
+│  │    → Calculates Haversine distance to each barbershop           │    │
+│  │ 3. LLM matches barbershop specialties with recommended styles   │    │
+│  │ 4. Returns top 3 barbershops with match reasoning               │    │
+│  │                                                                 │    │
+│  │ Output: BarbershopMatchResult (top 3 nearby shops)              │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+│  FINAL OUTPUT: { features, recommendations, barbershops }               │
+│                                                                         │
+│  Backend then:                                                          │
+│  1. Saves features to analyses table                                    │
+│  2. Downloads generated images → R2 (permanent URLs)                    │
+│  3. Saves recommendations to DB                                         │
+│  4. Sets status = "completed"                                           │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Agent 2: Style Matcher (Hybrid Knowledge)
+## The Agent Runner Engine (`runner.ts`)
 
-**Purpose:** Match user features to compatible hairstyles from the knowledge base.
-
-**API:** MiMo (OpenAI-compatible, tool calling)
-
-**Tools:**
-
-| Tool | Input | Output |
-|------|-------|--------|
-| `query_face_shape_guide` | `{ face_shape }` | Recommended styles, avoid list, notes |
-| `query_hair_compatibility` | `{ style_name, hair_texture, hair_thickness }` | `{ compatible: bool, reason }` |
-| `get_style_details` | `{ style_name }` | Full style details (description, tips, barber instruction) |
-| `list_all_styles` | `{}` | All available styles (DB + JSON merged) |
-
-**Hybrid Data Strategy:**
-1. Query `hairstyle_embeddings` table in Neon DB first
-2. Fallback to local JSON files if DB is empty or unavailable
-3. DB takes priority for duplicates (allows adding styles without redeploy)
-
----
-
-### Agent 3: Ranker & Explainer (4-Phase Autonomous Workflow)
-
-**Purpose:** Score each candidate, generate personalized AI explanations, and self-validate.
-
-**API:** MiMo (OpenAI-compatible, tool calling)
-
-**4-Phase Workflow:**
+Every agent (except Vision's image analysis) uses the same autonomous loop:
 
 ```
-PHASE 1 — SCORING
-  For each candidate → calculate_match_score()
-  Weighted: face 25% + hair 15% + thickness 10% + base 50%
-      ↓
-PHASE 2 — EXPLANATION (LLM-Generated)
-  For top candidates → generate_explanation()
-  Uses LLM to write personal, conversational reasons in Indonesian
-      ↓
-PHASE 3 — VALIDATION (Self-Check)
-  For each recommendation → validate_recommendation()
-  Checks: score consistency, feature matching, logical coherence
-  Removes invalid recommendations automatically
-      ↓
-PHASE 4 — FINAL OUTPUT
-  Sorted by match_percentage, validated, with reasoning
+┌──────────────────────────────────────────────────┐
+│            AUTONOMOUS AGENT LOOP                 │
+│                                                  │
+│  1. Send system prompt + user message to LLM     │
+│                    ↓                             │
+│  2. LLM responds with:                           │
+│     ├── tool_use blocks → execute tools          │
+│     │   ├── Run tool function                    │
+│     │   ├── Get result                           │
+│     │   └── Feed result back to LLM              │
+│     │        ↓                                   │
+│     │   (loop back to step 2)                    │
+│     │                                            │
+│     └── text only → agent is done                │
+│         └── Parse JSON from text → return        │
+│                                                  │
+│  Max iterations: 8-15 (varies per agent)         │
+│  Error recovery: retry with context on failure   │
+└──────────────────────────────────────────────────┘
 ```
 
-**Tools:**
+The LLM **autonomously decides**:
+- Which tool to call next
+- What parameters to pass
+- When it has enough information to stop
+- How to handle unexpected results
 
-| Tool | Input | Output | AI-Powered? |
-|------|-------|--------|-------------|
-| `calculate_match_score` | features + style | `{ overall, breakdown, reasons, confidence }` | Weighted algorithm |
-| `generate_explanation` | style + features + score | `{ main_reason, detail_reasons[], styling_tips, maintenance_tips }` | **Yes — LLM generates personal explanation** |
-| `validate_recommendation` | recommendation data | `{ valid, issues[], suggestion, confidence }` | Logic-based self-check |
-
-**Why This Matters for Judging:**
-- Agent autonomously decides the workflow order
-- LLM generates unique explanations per user (not templates)
-- Self-validation shows agent can check its own work
-- 12-20 iterations demonstrate genuine autonomous behavior
+This is genuine agentic behavior — not scripted function calls.
 
 ---
 
-### Agent 4: Image Generator (optional)
+## Autonomous Behavior (for Judges)
 
-**Purpose:** Generate reference hairstyle images. Pipeline continues if this agent fails.
+| Behavior | How It's Demonstrated |
+|----------|----------------------|
+| **Independent Decision Making** | LLM chooses which tools to call and in what order — not hardcoded |
+| **Multi-turn Reasoning** | Agent processes tool results, reasons about them, then decides next action |
+| **Self-Validation** | Ranker Agent calls `validate_recommendation` to check its own output |
+| **LLM-Powered Explanations** | `generate_explanation` tool internally calls LLM to write personal reasons (not templates) |
+| **Error Recovery** | On LLM failure, agent gets error context and retries with different approach |
+| **Graceful Degradation** | If any agent fails, pipeline continues with fallback data |
+| **Hybrid Data Access** | Agents query DB first, fall back to JSON — adapts to data availability |
 
-**API:** Replicate `black-forest-labs/flux-2-pro`
-
-| Tool | Input | Output |
-|------|-------|--------|
-| `generate_hairstyle_image` | `{ style_name, description, angle }` | `{ style_name, angle, image_url }` |
-
----
-
-### Agent 5: Barbershop Finder (optional, pro-only, hybrid)
-
-**Purpose:** Find nearby barbershops matching recommended styles.
-
-**API:** MiMo (OpenAI-compatible, tool calling)
-
-**Hybrid Data Strategy:**
-1. Check `barbershop_cache` table (TTL: 7 days)
-2. If cache miss → Google Maps Places API (if `GOOGLE_MAPS_API_KEY` set)
-3. Cache results to DB for future requests
-4. Fallback to local `barbershops.json` if all else fails
-
-| Tool | Input | Output |
-|------|-------|--------|
-| `search_nearby_barbershops` | `{ latitude, longitude, radius_km, style_name }` | `{ count, source, barbershops[] }` |
-| `get_barbershop_details` | `{ barbershop_id }` | Full barbershop info |
-| `calculate_distance` | `{ lat1, lng1, lat2, lng2 }` | `{ distance_km }` |
+**Total tool calls per pipeline run: ~15-25**
 
 ---
 
-## Core Engine: Agent Runner
+## 13 Tools Across 5 Agents
 
-Each agent runs through `runAgent()` in `src/runner.ts`:
-
-```typescript
-while (iterations < maxIterations) {
-  // 1. LLM thinks and decides next action
-  const response = await chatCompletion(messages, tools)
-
-  // 2. Extract reasoning (logged for observability)
-  if (response.content) {
-    emit({ type: "thinking", message: response.content })
-  }
-
-  // 3. If LLM wants to call tools:
-  if (response.tool_calls) {
-    for (const toolCall of response.tool_calls) {
-      emit({ type: "tool_call", message: `Calling ${toolCall.name}` })
-      const result = await tool.execute(toolCall.params)
-      emit({ type: "tool_result", message: summarize(result) })
-      messages.push({ role: "tool", content: result })
-    }
-    continue  // Let LLM process results and decide next step
-  }
-
-  // 4. No tool calls = agent is done
-  return parseOutput(response.content)
-}
-
-// 5. Error recovery: if LLM errors, add context and retry
-messages.push({ role: "user", content: "Error occurred, try different approach" })
-```
-
-**Key Autonomous Behaviors:**
-- LLM decides which tools to call and in what order
-- LLM processes tool results and reasons about next steps
-- Error recovery: on failure, agent gets context and retries
-- Reasoning is logged at every step for full observability
+| Agent | Tool | What It Does |
+|-------|------|-------------|
+| Vision | `analyze_image` | Sends photo to GLM-5-Turbo multimodal → extracts face/hair features |
+| Vision | `merge_analyses` | Combines multiple angle analyses via majority vote |
+| Knowledge | `query_face_shape_guide` | Gets recommended styles for a face shape (DB → JSON) |
+| Knowledge | `query_hair_compatibility` | Checks if style works with hair type/thickness |
+| Knowledge | `get_style_details` | Gets full style info (barber instructions, tips) |
+| Knowledge | `list_all_styles` | Lists all available styles from DB + JSON |
+| Ranker | `calculate_match_score` | Weighted scoring algorithm (face 25%, hair 15%, thickness 10%) |
+| Ranker | `generate_explanation` | **LLM call** — writes personal explanation in Indonesian |
+| Ranker | `validate_recommendation` | Self-check: is score consistent with features? |
+| ImageGen | `generate_hairstyle_image` | Calls Replicate flux-2-pro → generates reference photo |
+| Barbershop | `search_nearby_barbershops` | Hybrid search: DB cache → Google Maps → JSON |
+| Barbershop | `get_barbershop_details` | Gets full barbershop info by ID |
+| Barbershop | `calculate_distance` | Haversine distance between two coordinates |
 
 ---
 
 ## Real-time Progress Logging
 
-Every agent step is logged to the `agent_logs` table with rich detail:
+Every agent step is logged to `agent_logs` table in real-time. The frontend polls `GET /analyses/:id/status` to show live progress:
 
 ```
-[vision]     thinking    "💭 Analyzing front photo for face shape..."
-[vision]     tool_call   "🔧 Memanggil analyze_image(angle="depan")"
-[vision]     tool_result "✅ analyze_image → face_shape: oval (87%)"
-[vision]     complete    "✅ Vision Agent selesai (5 iterasi)"
+[vision]     start: Memulai analisis foto...
+[vision]     💭 I'll start by analyzing the front-facing photo...
+[vision]     🔧 Memanggil analyze_image(angle="depan")
+[vision]     ✅ analyze_image → face_shape: oval (85%)
+[vision]     complete: Analisis selesai: oval (85%), rambut straight thick
 
-[knowledge]  thinking    "💭 User has oval face, checking compatible styles..."
-[knowledge]  tool_call   "🔧 Memanggil query_face_shape_guide(face_shape="oval")"
-[knowledge]  tool_result "✅ query_face_shape_guide → 6 styles"
+[knowledge]  start: Mencari gaya rambut yang cocok...
+[knowledge]  🔧 Memanggil query_face_shape_guide(face_shape="oval")
+[knowledge]  ✅ query_face_shape_guide → 6 styles
+[knowledge]  complete: 6 kandidat gaya rambut ditemukan
 
-[ranking]    thinking    "💭 Scoring Textured Crop for oval face..."
-[ranking]    tool_call   "🔧 Memanggil calculate_match_score(style_name="Textured Crop")"
-[ranking]    tool_result "✅ calculate_match_score → score: 91%"
-[ranking]    tool_call   "🔧 Memanggil generate_explanation(style_name="Textured Crop")"
-[ranking]    tool_result "✅ generate_explanation → Textured Crop cocok karena..."
-[ranking]    tool_call   "🔧 Memanggil validate_recommendation(score=91)"
-[ranking]    tool_result "✅ validate_recommendation → ✓ valid"
+[ranking]    start: Menghitung skor dan ranking...
+[ranking]    🔧 Memanggil calculate_match_score(style="Textured Crop")
+[ranking]    ✅ calculate_match_score → score: 85%
+[ranking]    🔧 Memanggil generate_explanation(style="Textured Crop")
+[ranking]    ✅ generate_explanation → "Textured Crop cocok karena wajah oval..."
+[ranking]    🔧 Memanggil validate_recommendation(score=85)
+[ranking]    ✅ validate_recommendation → ✓ valid
+[ranking]    complete: Top 3 rekomendasi siap!
+
+[imagegen]   start: Generate gambar referensi...
+[imagegen]   🔧 Memanggil generate_hairstyle_image(style="Textured Crop")
+[imagegen]   ✅ generate_hairstyle_image → image saved to R2
+[imagegen]   complete: Gambar referensi siap!
+
+[barbershop] skip: Lokasi tidak tersedia — barbershop finder dilewati
 ```
-
-This is visible in the demo via `GET /api/v1/analyses/:id/status` → `progress[]` array.
 
 ---
 
@@ -287,83 +245,51 @@ This is visible in the demo via `GET /api/v1/analyses/:id/status` → `progress[
 
 ```
 agent/src/
-├── index.ts                   # Export runPipeline
-├── pipeline.ts                # Orchestrate 5 agents sequentially
-├── runner.ts                  # Core autonomous loop engine (with reasoning logging)
-├── types.ts                   # TypeScript interfaces
+├── index.ts              # Export: runPipeline (entry point for backend)
+├── pipeline.ts           # Orchestrates 5 agents sequentially
+├── runner.ts             # Core autonomous loop engine (Anthropic SDK)
+├── types.ts              # TypeScript interfaces (FaceFeatures, Recommendation, etc.)
 ├── agents/
-│   ├── vision.ts              # Agent 1: Vision Analyzer
-│   ├── knowledge.ts           # Agent 2: Style Matcher (hybrid DB + JSON)
-│   ├── ranker.ts              # Agent 3: Ranker (4-phase, LLM explanations)
-│   ├── imagegen.ts            # Agent 4: Image Generator
-│   └── barbershop.ts          # Agent 5: Barbershop Finder (hybrid)
+│   ├── vision.ts         # Agent 1: Multimodal photo analysis
+│   ├── knowledge.ts      # Agent 2: Style matching with fallback guarantee
+│   ├── ranker.ts         # Agent 3: Scoring + LLM explanations + self-validation
+│   ├── imagegen.ts       # Agent 4: Replicate image generation
+│   └── barbershop.ts     # Agent 5: Location-based barbershop search
 ├── tools/
-│   ├── vision-tools.ts        # 2 tools: analyze_image, merge_analyses
-│   ├── knowledge-tools.ts     # 4 tools: face_shape, compatibility, details, list_all
-│   ├── ranker-tools.ts        # 3 tools: score, explanation (LLM), validate
-│   ├── imagegen-tools.ts      # 1 tool: generate_image
-│   └── barbershop-tools.ts    # 3 tools: search_nearby, get_details, distance
-├── knowledge/
-│   ├── face-shapes.json       # 6 face shapes mapping
-│   ├── hair-types.json        # 4 textures × 3 thicknesses
-│   ├── styles.json            # 6 hairstyle definitions
-│   └── barbershops.json       # Curated barbershops (Indonesia)
+│   ├── vision-tools.ts   # analyze_image, merge_analyses
+│   ├── knowledge-tools.ts # query_face_shape_guide, query_hair_compatibility, get_style_details, list_all_styles
+│   ├── ranker-tools.ts   # calculate_match_score, generate_explanation (LLM), validate_recommendation
+│   ├── imagegen-tools.ts # generate_hairstyle_image
+│   └── barbershop-tools.ts # search_nearby_barbershops, get_barbershop_details, calculate_distance
+├── knowledge/            # Local knowledge base (JSON)
+│   ├── face-shapes.json  # 6 face shapes → recommended/avoided styles
+│   ├── hair-types.json   # 4 textures × 3 thicknesses → compatibility matrix
+│   ├── styles.json       # 6 hairstyle definitions with barber instructions
+│   └── barbershops.json  # 5 curated barbershops in Indonesia
 └── lib/
-    ├── llm.ts                 # OpenAI SDK wrapper (MiMo)
-    └── replicate.ts           # Replicate API wrapper (Vision + ImageGen)
+    ├── llm.ts            # Anthropic SDK client (Z.AI GLM-5-Turbo)
+    └── replicate.ts      # Vision analysis (Anthropic) + Image generation (Replicate)
 ```
 
 ---
 
-## Environment Variables
+## AI Models Used
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MAIN_LLM_BASE_URL` | **Yes** | MiMo API endpoint |
-| `MAIN_LLM_API_KEY` | **Yes** | MiMo API key |
-| `MAIN_LLM_MODEL` | **Yes** | Model name (default: mimo-v2.5-pro) |
-| `REPLICATE_API_TOKEN` | **Yes** | Replicate API token |
-| `REPLICATE_VISION_MODEL` | No | Vision model (default: lucataco/moondream2) |
-| `REPLICATE_IMAGEGEN_MODEL` | No | Image gen model (default: black-forest-labs/flux-2-pro) |
-| `DATABASE_URL` | No | Neon PostgreSQL (enables hybrid DB queries) |
-| `GOOGLE_MAPS_API_KEY` | No | Google Maps API key (Agent 5 hybrid) |
-| `GOOGLE_MAPS_RADIUS` | No | Search radius in meters (default: 5000) |
+| Agent | Model | Provider | Cost | Purpose |
+|-------|-------|----------|------|---------|
+| Vision | GLM-5-Turbo | Z.AI (Anthropic-compatible) | Included in plan | See photo → extract face/hair features |
+| Knowledge | GLM-5-Turbo | Z.AI (Anthropic-compatible) | Included in plan | Reason about style compatibility |
+| Ranker | GLM-5-Turbo | Z.AI (Anthropic-compatible) | Included in plan | Score, explain, validate |
+| ImageGen | flux-2-pro | Replicate | ~$0.05/image | Generate photorealistic hairstyle reference |
+| Barbershop | GLM-5-Turbo | Z.AI (Anthropic-compatible) | Included in plan | Match shops to styles |
 
 ---
 
-## Usage
+## Guarantees
 
-```typescript
-import { runPipeline } from "./src/pipeline";
-
-const result = await runPipeline(
-  ["https://r2.dev/photo-front.webp"],
-  {
-    onProgress: (agent, step, message) => {
-      console.log(`[${agent}] ${step}: ${message}`);
-    },
-  },
-  {
-    userLatitude: -7.2906,     // optional: enables Agent 5
-    userLongitude: 112.7344,   // optional: enables Agent 5
-    tier: "pro",               // optional: defaults to "free"
-  }
-);
-
-console.log(result.features);        // FaceFeatures
-console.log(result.recommendations); // Recommendation[]
-console.log(result.barbershops);     // BarbershopMatchResult | undefined
-```
-
----
-
-## AI Models & Tools Used
-
-| Component | Model/Service | Purpose |
-|-----------|---------------|---------|
-| Vision Analysis | Replicate `lucataco/moondream2` | Face/hair feature extraction |
-| Style Matching | MiMo (custom LLM) | Knowledge retrieval + reasoning |
-| Ranking & Explanation | MiMo (custom LLM) | Scoring + personalized AI explanations |
-| Image Generation | Replicate `black-forest-labs/flux-2-pro` | Hairstyle reference images |
-| Barbershop Matching | MiMo (custom LLM) | Location-based recommendation |
-| Barbershop Data | Google Maps Places API | Real-world barbershop discovery |
+- ✅ **Always returns recommendations** — fallback to JSON knowledge base if LLM fails
+- ✅ **Always generates at least 1 image** — top recommendation always gets an image
+- ✅ **Always reaches "completed" status** — graceful error handling at every stage
+- ✅ **No visible errors in frontend** — LLM errors suppressed from progress logs
+- ✅ **Pipeline never blocks the server** — runs async in background
+- ✅ **Deterministic fallback** — even if all LLM calls fail, user gets recommendations from local JSON
