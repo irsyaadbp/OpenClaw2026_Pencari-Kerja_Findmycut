@@ -1,0 +1,32 @@
+{
+  "oval": {
+    "recommended": ["Textured Crop", "Side Part", "French Crop", "Quiff", "Slick Back", "Pompadour"],
+    "avoid": ["Very long flat hair"],
+    "notes": "Most versatile face shape"
+  },
+  "round": {
+    "recommended": ["Undercut", "Pompadour", "Quiff", "Faux Hawk", "Side Part"],
+    "avoid": ["Buzz cut", "Caesar Cut"],
+    "notes": "Need height on top to elongate"
+  },
+  "square": {
+    "recommended": ["Textured Crop", "French Crop", "Crew Cut", "Side Part", "Caesar Cut"],
+    "avoid": ["Very rounded styles"],
+    "notes": "Strong jawline pairs with structured cuts"
+  },
+  "heart": {
+    "recommended": ["Side Swept", "Fringe", "Textured Quiff", "Messy Crop"],
+    "avoid": ["Slicked back", "High volume pompadour"],
+    "notes": "Need volume at chin level"
+  },
+  "oblong": {
+    "recommended": ["French Crop", "Crew Cut", "Side Part", "Caesar Cut"],
+    "avoid": ["Pompadour", "Very tall styles"],
+    "notes": "Avoid adding height"
+  },
+  "diamond": {
+    "recommended": ["Textured Fringe", "Side Part", "Quiff", "French Crop"],
+    "avoid": ["Buzz cut"],
+    "notes": "Soften angular features with texture"
+  }
+}

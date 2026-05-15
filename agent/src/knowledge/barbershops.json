@@ -1,0 +1,72 @@
+[
+  {
+    "id": "b001",
+    "name": "Barberbox Surabaya",
+    "address": "Jl. Raya Darmo Permai III No.16, Surabaya",
+    "lat": -7.2906,
+    "lng": 112.7344,
+    "rating": 4.8,
+    "phone": "+62317392211",
+    "city": "Surabaya",
+    "specialties": ["textured crop", "fade", "undercut"],
+    "price_range": "Rp50.000 - Rp100.000",
+    "image": "https://barberbox.co.id/logo.png",
+    "google_place_id": null
+  },
+  {
+    "id": "b002",
+    "name": "Chief Barbershop Tunjungan",
+    "address": "Jl. Tunjungan No.32, Surabaya",
+    "lat": -7.2654,
+    "lng": 112.7441,
+    "rating": 4.7,
+    "phone": "+62315312345",
+    "city": "Surabaya",
+    "specialties": ["pompadour", "slick back", "buzz cut"],
+    "price_range": "Rp45.000 - Rp80.000",
+    "image": null,
+    "google_place_id": null
+  },
+  {
+    "id": "b003",
+    "name": "Razors Barbershop Sidoarjo",
+    "address": "Jl. Pahlawan No.88, Sidoarjo",
+    "lat": -7.4478,
+    "lng": 112.7183,
+    "rating": 4.6,
+    "phone": "+62318912345",
+    "city": "Sidoarjo",
+    "specialties": ["french crop", "side part", "taper fade"],
+    "price_range": "Rp35.000 - Rp70.000",
+    "image": null,
+    "google_place_id": null
+  },
+  {
+    "id": "b004",
+    "name": "Two Face Barbershop Jakarta",
+    "address": "Jl. Kemang Raya No.20, Jakarta Selatan",
+    "lat": -6.2615,
+    "lng": 106.8106,
+    "rating": 4.9,
+    "phone": "+62217192345",
+    "city": "Jakarta",
+    "specialties": ["modern mullet", "curtain bangs", "wolf cut"],
+    "price_range": "Rp80.000 - Rp150.000",
+    "image": null,
+    "google_place_id": null
+  },
+  {
+    "id": "b005",
+    "name": "Barber Kingdom Bandung",
+    "address": "Jl. Dago No.45, Bandung",
+    "lat": -6.8715,
+    "lng": 107.6187,
+    "rating": 4.7,
+    "phone": "+62222501234",
+    "city": "Bandung",
+    "specialties": ["crew cut", "ivy league", "textured quiff"],
+    "price_range": "Rp40.000 - Rp85.000",
+    "image": null,
+    "google_place_id": null
+  }
+]

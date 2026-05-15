@@ -1,0 +1,74 @@
+[
+  {
+    "name": "Textured Crop",
+    "description": "Short on sides, textured on top. Modern low-maintenance cut.",
+    "suitable_face_shapes": ["oval", "round", "square"],
+    "suitable_hair_types": ["straight", "wavy"],
+    "suitable_thickness": ["medium", "thick"],
+    "maintenance_level": "low",
+    "trending": true,
+    "styling_tips": "Use matte clay for texture. Blow dry upward while tousling.",
+    "barber_instruction": "Sides: #1.5 blended to #3. Top: Leave 6-7cm, add texture with point cutting. Finish: Natural, avoid hard lines.",
+    "reference_image_url": ""
+  },
+  {
+    "name": "Side Part",
+    "description": "Classic professional cut with defined part line.",
+    "suitable_face_shapes": ["oval", "square", "oblong"],
+    "suitable_hair_types": ["straight", "wavy"],
+    "suitable_thickness": ["medium", "thick"],
+    "maintenance_level": "medium",
+    "trending": true,
+    "styling_tips": "Use pomade for hold. Comb to the side when slightly damp.",
+    "barber_instruction": "Sides: Mid fade. Top: Leave 8-10cm, create natural part line. Finish: Clean side sweep with pomade.",
+    "reference_image_url": ""
+  },
+  {
+    "name": "French Crop",
+    "description": "Short all around with forward-fringe. Clean and modern.",
+    "suitable_face_shapes": ["oval", "square", "oblong"],
+    "suitable_hair_types": ["straight", "wavy", "curly"],
+    "suitable_thickness": ["thin", "medium", "thick"],
+    "maintenance_level": "low",
+    "trending": true,
+    "styling_tips": "Let fringe fall naturally. Use minimal product.",
+    "barber_instruction": "Sides: High skin fade. Top: Leave 4-5cm, blunt fringe at forehead. Finish: Precise fringe line.",
+    "reference_image_url": ""
+  },
+  {
+    "name": "Quiff",
+    "description": "Volume at the front, shorter on sides. Stylish and masculine.",
+    "suitable_face_shapes": ["oval", "round", "square"],
+    "suitable_hair_types": ["straight", "wavy"],
+    "suitable_thickness": ["medium", "thick"],
+    "maintenance_level": "medium",
+    "trending": true,
+    "styling_tips": "Blow dry upward and back from front. Use pomade or clay for hold.",
+    "barber_instruction": "Sides: Low-mid fade. Top: Leave 10-12cm, longer at front for volume. Finish: Lift and sweep back.",
+    "reference_image_url": ""
+  },
+  {
+    "name": "Buzz Cut",
+    "description": "Ultra short all around. Ultimate low maintenance.",
+    "suitable_face_shapes": ["oval", "square"],
+    "suitable_hair_types": ["straight", "wavy", "curly", "coily"],
+    "suitable_thickness": ["thin", "medium", "thick"],
+    "maintenance_level": "low",
+    "trending": false,
+    "styling_tips": "No styling needed. That is the beauty of it.",
+    "barber_instruction": "All over: #2 clipper. Edge up hairline. Finish: Sharp clean lines.",
+    "reference_image_url": ""
+  },
+  {
+    "name": "Slick Back",
+    "description": "All hair swept back. Retro but timeless.",
+    "suitable_face_shapes": ["oval", "square"],
+    "suitable_hair_types": ["straight", "wavy"],
+    "suitable_thickness": ["medium", "thick"],
+    "maintenance_level": "medium",
+    "trending": false,
+    "styling_tips": "Use strong-hold pomade. Comb back when wet.",
+    "barber_instruction": "Sides: Taper fade. Top: Leave 12-15cm. Finish: Sleek backward sweep with pomade.",
+    "reference_image_url": ""
+  }
+]
