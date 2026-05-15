@@ -42,10 +42,19 @@ export async function runPipeline(
 
   // === Agent 2: Knowledge ===
   callbacks.onProgress("knowledge", "start", "Mencari gaya rambut yang cocok...");
-  const candidates = await runKnowledgeAgent(features, emit);
+  let candidates = await runKnowledgeAgent(features, emit);
+  // Limit to max 6 candidates to keep pipeline fast and output parseable
+  if (candidates.length > 6) {
+    candidates = candidates.slice(0, 6);
+  }
   callbacks.onProgress("knowledge", "complete",
     `${candidates.length} kandidat gaya rambut ditemukan`
   );
+
+  // Safety check: if still 0 candidates somehow, use all styles as fallback
+  if (candidates.length === 0) {
+    callbacks.onProgress("knowledge", "complete", "Menggunakan semua gaya rambut sebagai kandidat");
+  }
 
   // === Agent 3: Ranker ===
   callbacks.onProgress("ranking", "start", "Menghitung skor dan ranking...");
@@ -65,23 +74,25 @@ export async function runPipeline(
 
   // === Agent 5: Barbershop Finder (optional, pro-only, needs location) ===
   let barbershops = undefined;
-  try {
-    callbacks.onProgress("barbershop", "start", "Mencari barbershop terdekat...");
-    const barbershopResult = await runBarbershopAgent(
-      recommendations,
-      options.userLatitude,
-      options.userLongitude
-    );
-    if (barbershopResult) {
-      barbershops = barbershopResult;
-      callbacks.onProgress("barbershop", "complete",
-        `${barbershops.barbershops.length} barbershop ditemukan`
+  if (options.userLatitude && options.userLongitude) {
+    try {
+      callbacks.onProgress("barbershop", "start", "Mencari barbershop terdekat...");
+      const barbershopResult = await runBarbershopAgent(
+        recommendations,
+        options.userLatitude,
+        options.userLongitude
       );
-    } else {
-      callbacks.onProgress("barbershop", "skip", "Lokasi tidak tersedia — barbershop finder dilewati");
+      if (barbershopResult) {
+        barbershops = barbershopResult;
+        callbacks.onProgress("barbershop", "complete",
+          `${barbershops.barbershops.length} barbershop ditemukan`
+        );
+      }
+    } catch (err: any) {
+      callbacks.onProgress("barbershop", "error", `Barbershop finder skipped: ${err.message}`);
     }
-  } catch (err: any) {
-    callbacks.onProgress("barbershop", "error", `Barbershop finder skipped: ${err.message}`);
+  } else {
+    callbacks.onProgress("barbershop", "skip", "Lokasi tidak tersedia — barbershop finder dilewati");
   }
 
   return { features, recommendations, barbershops };

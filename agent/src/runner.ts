@@ -1,4 +1,5 @@
-import { chatCompletion, parseJsonFromText } from "./lib/llm";
+import { chatCompletion, parseJsonFromText, type LlmTool } from "./lib/llm";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { AgentStep } from "./types";
 
 export interface Tool {
@@ -17,14 +18,14 @@ export interface AgentConfig {
 }
 
 /**
- * Generic autonomous agent runner with tool-calling loop.
+ * Generic autonomous agent runner with Anthropic-style tool-calling loop.
  *
  * Features:
- * - Multi-turn conversation with LLM
+ * - Multi-turn conversation with LLM (Anthropic format)
  * - Autonomous tool selection and execution
  * - Reasoning extraction and logging
  * - Error recovery (tool failures don't crash the loop)
- * - Iteration tracking for observability
+ * - Clean progress logging (no spam)
  */
 export async function runAgent(
   config: AgentConfig,
@@ -34,52 +35,72 @@ export async function runAgent(
   const maxIter = config.maxIterations ?? 8;
   const emit = (step: AgentStep) => onStep?.(step);
 
-  const toolsSchema = config.tools.map((t) => ({
-    type: "function" as const,
-    function: { name: t.name, description: t.description, parameters: t.parameters },
+  // Convert tools to Anthropic format
+  const anthropicTools: LlmTool[] = config.tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: {
+      type: "object" as const,
+      properties: t.parameters.properties || {},
+      required: t.parameters.required || [],
+    },
   }));
 
-  const messages: any[] = [
-    { role: "system", content: config.systemPrompt },
-    { role: "user", content: userMessage },
+  const messages: Anthropic.MessageParam[] = [
+    { role: "user", content: `${config.systemPrompt}\n\n---\n\n${userMessage}` },
   ];
 
   let iterations = 0;
   let lastReasoning: string | undefined;
 
+  // Emit initial thinking
+  emit({
+    agent: config.name,
+    type: "thinking",
+    message: `${config.name} berpikir...`,
+    timestamp: new Date(),
+  });
+
   while (iterations < maxIter) {
     iterations++;
-    emit({
-      agent: config.name,
-      type: "thinking",
-      message: `${config.name} berpikir... (iterasi ${iterations}/${maxIter})`,
-      timestamp: new Date(),
-    });
 
     try {
-      const response = await chatCompletion(messages, toolsSchema, config.model);
+      const response = await chatCompletion(messages, anthropicTools, config.model);
 
-      // Extract reasoning from response content (even when tool_calls are present)
-      if (response.content) {
-        lastReasoning = response.content;
-        emit({
-          agent: config.name,
-          type: "thinking",
-          message: `💭 ${truncate(response.content, 200)}`,
-          timestamp: new Date(),
-        });
+      // Extract text content (reasoning)
+      const textBlocks = response.content.filter((b) => b.type === "text");
+      const reasoning = textBlocks.map((b) => (b as any).text).join("\n");
+      if (reasoning) {
+        lastReasoning = reasoning;
+        if (reasoning.length > 10 && !reasoning.includes("error occurred")) {
+          emit({
+            agent: config.name,
+            type: "thinking",
+            message: `💭 ${truncate(reasoning, 200)}`,
+            timestamp: new Date(),
+          });
+        }
       }
 
-      if (response.tool_calls && response.tool_calls.length > 0) {
-        // Process each tool call
-        for (const toolCall of response.tool_calls) {
-          if (toolCall.type !== "function") continue;
-          const fn = (toolCall as any).function;
-          const tool = config.tools.find((t) => t.name === fn.name);
-          if (!tool) continue;
+      // Check if LLM wants to use tools
+      const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
 
-          let args: any;
-          try { args = JSON.parse(fn.arguments); } catch { args = fn.arguments; }
+      if (toolUseBlocks.length > 0) {
+        // Push assistant response (with tool_use blocks)
+        messages.push({ role: "assistant", content: response.content });
+
+        // Execute tools and collect results
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+        for (const block of toolUseBlocks) {
+          const toolUse = block as Anthropic.ToolUseBlock;
+          const tool = config.tools.find((t) => t.name === toolUse.name);
+          if (!tool) {
+            toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify({ error: "Tool not found" }) });
+            continue;
+          }
+
+          const args = toolUse.input as any;
 
           emit({
             agent: config.name,
@@ -94,13 +115,6 @@ export async function runAgent(
             result = await tool.execute(args);
           } catch (err: any) {
             result = { error: err.message };
-            emit({
-              agent: config.name,
-              type: "error",
-              message: `⚠️ ${tool.name} gagal: ${err.message}`,
-              toolName: tool.name,
-              timestamp: new Date(),
-            });
           }
 
           emit({
@@ -111,15 +125,21 @@ export async function runAgent(
             timestamp: new Date(),
           });
 
-          messages.push(
-            { role: "assistant", content: response.content || null, tool_calls: [toolCall] },
-            { role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) }
-          );
+          // Truncate result if too long
+          const resultStr = JSON.stringify(result);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: resultStr.length > 3000 ? resultStr.slice(0, 3000) + "..." : resultStr,
+          });
         }
+
+        // Push tool results as user message
+        messages.push({ role: "user", content: toolResults });
         continue;
       }
 
-      // No tool calls — agent is done, return final output
+      // No tool calls — agent is done
       emit({
         agent: config.name,
         type: "complete",
@@ -129,53 +149,42 @@ export async function runAgent(
 
       return {
         success: true,
-        output: parseJsonFromText(response.content || ""),
+        output: parseJsonFromText(reasoning || ""),
         iterations,
         reasoning: lastReasoning,
       };
     } catch (err: any) {
-      emit({
-        agent: config.name,
-        type: "error",
-        message: `❌ Error: ${err.message}`,
-        timestamp: new Date(),
-      });
+      // Don't emit LLM errors to progress (noisy for FE)
+      console.error(`[${config.name}] Iteration ${iterations} error:`, err.message);
 
-      // Don't immediately fail — try one more iteration if we have budget
       if (iterations >= maxIter) {
         return { success: false, output: null, iterations, reasoning: lastReasoning };
       }
 
-      // Add error context to messages so LLM can self-correct
+      // Add error context for self-correction
       messages.push({
         role: "user",
-        content: `An error occurred: ${err.message}. Please try a different approach or provide your best answer with the information you have.`,
+        content: `An error occurred. Please provide your best answer with the information you have so far. Return JSON output.`,
       });
     }
   }
 
-  // Max iterations reached — try to extract whatever output we have
+  // Max iterations reached
   emit({
     agent: config.name,
     type: "complete",
-    message: `⚠️ ${config.name} mencapai batas iterasi (${maxIter}), menggunakan hasil terakhir`,
+    message: `⚠️ ${config.name} selesai (batas iterasi)`,
     timestamp: new Date(),
   });
 
   return { success: false, output: null, iterations, reasoning: lastReasoning };
 }
 
-/**
- * Truncate string for logging
- */
 function truncate(str: string, maxLen: number): string {
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen) + "...";
 }
 
-/**
- * Summarize tool arguments for readable logging
- */
 function summarizeArgs(args: any): string {
   if (!args || typeof args !== "object") return "";
   const keys = Object.keys(args);
@@ -191,9 +200,6 @@ function summarizeArgs(args: any): string {
   return `${keys.length} params`;
 }
 
-/**
- * Summarize tool result for readable logging
- */
 function summarizeResult(result: any): string {
   if (!result) return "null";
   if (result.error) return `error: ${result.error}`;

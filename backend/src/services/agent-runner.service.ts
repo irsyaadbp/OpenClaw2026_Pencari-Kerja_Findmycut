@@ -95,13 +95,17 @@ async function executePipeline(
       }
     );
 
-    // Save face features
-    await analysisRepo.updateFeatures(analysisId, {
-      faceShape: result.features.face_shape,
-      faceConfidence: result.features.face_confidence,
-      hairDensity: result.features.hair_thickness,
-      hairTexture: result.features.hair_texture,
-    });
+    // Save face features (skip if features are undefined/empty)
+    const features = result.features || {};
+    const featureUpdate: Record<string, any> = {};
+    if (features.face_shape) featureUpdate.faceShape = features.face_shape;
+    if (features.face_confidence) featureUpdate.faceConfidence = features.face_confidence;
+    if (features.hair_thickness) featureUpdate.hairDensity = features.hair_thickness;
+    if (features.hair_texture) featureUpdate.hairTexture = features.hair_texture;
+
+    if (Object.keys(featureUpdate).length > 0) {
+      await analysisRepo.updateFeatures(analysisId, featureUpdate);
+    }
 
     // Download Replicate generated images → save to R2 (permanent URLs)
     // Wrapped in try-catch so image download failures don't block completion
@@ -166,6 +170,8 @@ async function executePipeline(
     }
 
     // Mark as completed — always reaches here even if image downloads or saves partially fail
+    // Use small delay to ensure any in-flight onProgress callbacks finish first
+    await new Promise((r) => setTimeout(r, 500));
     await analysisRepo.updateStatus(analysisId, "completed", "done");
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
