@@ -104,63 +104,68 @@ async function executePipeline(
     });
 
     // Download Replicate generated images → save to R2 (permanent URLs)
-    log.info({ analysisId }, "⬇️ Downloading generated images to R2...");
-    const processedRecs = await Promise.all(
-      result.recommendations.map(async (rec: any) => {
-        let imageUrls: Record<string, string> = {};
+    // Wrapped in try-catch so image download failures don't block completion
+    let processedRecs = result.recommendations;
+    try {
+      log.info({ analysisId }, "⬇️ Downloading generated images to R2...");
+      processedRecs = await Promise.all(
+        result.recommendations.map(async (rec: any) => {
+          let imageUrls: Record<string, string> = {};
 
-        // If recommendation has generated image URLs (from Replicate), download them
-        if (rec.image_urls) {
-          for (const [angle, url] of Object.entries(rec.image_urls)) {
-            if (url && typeof url === "string" && url.startsWith("http")) {
-              try {
-                const saved = await downloadAndUpload(url as string, "hairstyles");
-                imageUrls[angle] = saved.url;
-              } catch (dlErr) {
-                log.warn({ err: dlErr, angle, url }, "Failed to download image, keeping original URL");
-                imageUrls[angle] = url as string;
+          if (rec.image_urls) {
+            for (const [angle, url] of Object.entries(rec.image_urls)) {
+              if (url && typeof url === "string" && url.startsWith("http")) {
+                try {
+                  const saved = await downloadAndUpload(url as string, "hairstyles");
+                  imageUrls[angle] = saved.url;
+                } catch (dlErr) {
+                  log.warn({ err: dlErr, angle, url }, "Failed to download image, keeping original URL");
+                  imageUrls[angle] = url as string;
+                }
               }
             }
           }
-        }
 
-        // If no images yet but has reference_image_url, save that too
-        if (Object.keys(imageUrls).length === 0 && rec.reference_image_url?.startsWith("http")) {
-          try {
-            const saved = await downloadAndUpload(rec.reference_image_url, "hairstyles");
-            imageUrls.front = saved.url;
-          } catch (dlErr) {
-            log.warn({ err: dlErr }, "Failed to download reference image");
+          if (Object.keys(imageUrls).length === 0 && rec.reference_image_url?.startsWith("http")) {
+            try {
+              const saved = await downloadAndUpload(rec.reference_image_url, "hairstyles");
+              imageUrls.front = saved.url;
+            } catch (dlErr) {
+              log.warn({ err: dlErr }, "Failed to download reference image");
+            }
           }
-        }
 
-        return {
-          ...rec,
-          image_urls: imageUrls,
-        };
-      })
-    );
+          return { ...rec, image_urls: imageUrls };
+        })
+      );
+    } catch (imgErr) {
+      log.warn({ err: imgErr, analysisId }, "Image download phase failed, continuing with original URLs");
+    }
 
     // Save recommendations to DB
     for (const rec of processedRecs) {
-      await recRepo.create({
-        analysisId,
-        styleName: rec.style_name,
-        matchScore: rec.match_percentage,
-        barberInstruction: rec.barber_instruction,
-        maintenance: rec.maintenance_tips,
-        stylingTips: rec.styling_tips,
-        imageUrls: rec.image_urls || {},
-        barbershop: result.barbershops
-          ? result.barbershops.barbershops.find(
-              (b: any) => b.recommended_style === rec.style_name
-            ) || null
-          : null,
-        isLocked: false,
-      });
+      try {
+        await recRepo.create({
+          analysisId,
+          styleName: rec.style_name,
+          matchScore: rec.match_percentage,
+          barberInstruction: rec.barber_instruction,
+          maintenance: rec.maintenance_tips,
+          stylingTips: rec.styling_tips,
+          imageUrls: rec.image_urls || {},
+          barbershop: result.barbershops
+            ? result.barbershops.barbershops.find(
+                (b: any) => b.recommended_style === rec.style_name
+              ) || null
+            : null,
+          isLocked: false,
+        });
+      } catch (recErr) {
+        log.warn({ err: recErr, analysisId, style: rec.style_name }, "Failed to save recommendation");
+      }
     }
 
-    // Mark as completed
+    // Mark as completed — always reaches here even if image downloads or saves partially fail
     await analysisRepo.updateStatus(analysisId, "completed", "done");
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
