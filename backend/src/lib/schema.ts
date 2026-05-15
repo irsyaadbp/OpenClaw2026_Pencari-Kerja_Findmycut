@@ -3,9 +3,62 @@ import {
   boolean, jsonb, timestamp, serial, real
 } from "drizzle-orm/pg-core";
 
-// NOTE: "user" table is managed by Better Auth (auto-created).
-// Do NOT define it here. Better Auth also creates "session" and "account" tables.
-// To add custom fields (like tier), use user.additionalFields in lib/auth.ts.
+// ============ BETTER AUTH TABLES ============
+// These tables are managed by Better Auth but must be defined in schema
+// for the Drizzle adapter to work.
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").unique().notNull(),
+  emailVerified: boolean("emailVerified").default(false),
+  image: text("image"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+  username: text("username").unique(),
+  displayUsername: text("displayUsername"),
+  isAnonymous: boolean("isAnonymous").default(false),
+  tier: text("tier").default("free"),
+});
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  token: text("token").unique().notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+// NOTE: "user" table is now defined above for Better Auth Drizzle adapter.
+// Better Auth also uses "session", "account", and "verification" tables.
 
 // ============ PAYMENTS ============
 export const payments = pgTable("payments", {

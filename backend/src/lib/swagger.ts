@@ -121,30 +121,57 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/auth/sign-in/social/google": {
-      get: {
+    "/api/auth/sign-in/social": {
+      post: {
         tags: ["Auth"],
-        summary: "Login with Google OAuth",
-        description: "Redirects user to Google consent screen. After approval, Google redirects to /api/auth/callback/google which creates/links the user and sets session cookie. Use callbackURL to specify where to redirect after success.",
-        parameters: [
-          { name: "callbackURL", in: "query", required: false, schema: { type: "string", format: "uri" }, description: "Frontend URL to redirect after successful login (e.g. http://localhost:5173/)" },
-        ],
+        summary: "Login with social provider (Google)",
+        description: "Initiates OAuth flow. Returns a redirect URL that the frontend should navigate to (window.location.href = url). Provider is specified in the body.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["provider", "callbackURL"],
+                properties: {
+                  provider: { type: "string", enum: ["google"], description: "OAuth provider name" },
+                  callbackURL: { type: "string", format: "uri", description: "Frontend URL to redirect after successful login" },
+                },
+              },
+              example: { provider: "google", callbackURL: "http://localhost:5173/" },
+            },
+          },
+        },
         responses: {
-          "302": { description: "Redirect to Google consent screen" },
+          "200": {
+            description: "Returns redirect URL to provider consent screen",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    url: { type: "string", format: "uri", description: "Redirect URL — FE should do: window.location.href = url" },
+                    redirect: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          "403": { description: "Invalid callbackURL (not in trustedOrigins)" },
         },
       },
     },
     "/api/auth/callback/google": {
       get: {
         tags: ["Auth"],
-        summary: "Google OAuth callback (auto-handled)",
-        description: "Google redirects here after user approves. Better Auth automatically creates/links user, sets session cookie, and redirects to callbackURL. Do NOT call this manually.",
+        summary: "Google OAuth callback (internal)",
+        description: "Called by Google after user approves. Better Auth handles this automatically — creates/links user, sets session cookie, redirects to callbackURL. Do NOT call this manually from frontend.",
         parameters: [
           { name: "code", in: "query", required: true, schema: { type: "string" }, description: "Authorization code from Google" },
           { name: "state", in: "query", required: false, schema: { type: "string" }, description: "CSRF state parameter" },
         ],
         responses: {
-          "302": { description: "Redirect to app with session cookie set" },
+          "302": { description: "Redirect to callbackURL with session cookie set" },
           "400": { description: "Invalid code or state" },
         },
       },
