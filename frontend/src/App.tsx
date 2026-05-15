@@ -9,6 +9,7 @@ import { formatInstructions } from "./lib/format-instructions";
 import { generateExportFilename } from "./lib/export";
 import { type CaptureAngle, getInitialCaptureAngle, getNextCaptureAngle, isFinalAngle } from "./lib/capture-flow";
 import { DEMO_FACES } from "./data/demo-faces";
+import { BARBERSHOPS, SPONSORED_BARBERSHOP, getGoogleMapsUrl } from "./data/barbershops";
 
 function App() {
   const [stage, setStage] = useState<Stage>("landing");
@@ -30,6 +31,9 @@ function App() {
   );
   const [user, setUser] = useState<{ name: string; email: string; photo: string } | null>(null);
   const [isLoginPopupOpen, setIsLoginPopupOpen] = useState(false);
+  const [isLocationPopupOpen, setIsLocationPopupOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "granted" | "denied">("idle");
   const exportRef = useRef<HTMLDivElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -391,7 +395,7 @@ function App() {
               style={{ width: "100%", fontSize: "16px", padding: "16px 32px" }}
               onClick={() => {
                 if (user) {
-                  handleStart();
+                  setIsLocationPopupOpen(true);
                 } else {
                   setIsLoginPopupOpen(true);
                 }
@@ -743,6 +747,514 @@ function App() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Barbershop Terdekat Section */}
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "16px",
+                }}
+              >
+                <div className="fmc-eyebrow-mono">Barbershop Terdekat</div>
+                {paymentStatus === "unlocked" && userLocation ? (
+                  <div
+                    className="fmc-caption-mono"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      color: "#22c55e",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    Nearby
+                  </div>
+                ) : (
+                  <div
+                    className="fmc-caption-mono"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      color: "var(--body-mid)",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Pro
+                  </div>
+                )}
+              </div>
+
+              {/* Gallery with locked overlay for free tier */}
+              <div style={{ position: "relative" }}>
+                {/* Sponsored Barbershop Card */}
+                <a
+                  href={getGoogleMapsUrl(SPONSORED_BARBERSHOP)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "block",
+                    textDecoration: "none",
+                    color: "inherit",
+                    marginBottom: "12px",
+                    filter: paymentStatus !== "unlocked" ? "blur(6px)" : "none",
+                    opacity: paymentStatus !== "unlocked" ? 0.6 : 1,
+                    pointerEvents: paymentStatus !== "unlocked" ? "none" : "auto",
+                    transition: "filter 0.3s ease, opacity 0.3s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      background: "var(--canvas-card)",
+                      border: "1px solid var(--hairline)",
+                      borderRadius: "var(--rounded-sm)",
+                      overflow: "hidden",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {/* Hero Image */}
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "160px",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <img
+                        src={SPONSORED_BARBERSHOP.photo}
+                        alt={SPONSORED_BARBERSHOP.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                      {/* Gradient overlay */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "linear-gradient(transparent 40%, rgba(0,0,0,0.8))",
+                        }}
+                      />
+                      {/* Sponsored badge */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "10px",
+                          left: "10px",
+                          padding: "3px 8px",
+                          borderRadius: "var(--rounded-pill)",
+                          fontSize: "9px",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 500,
+                          textTransform: "uppercase",
+                          letterSpacing: "1px",
+                          background: "rgba(255, 255, 255, 0.1)",
+                          color: "var(--body)",
+                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        Sponsored
+                      </div>
+                      {/* Ads badge */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "10px",
+                          right: "10px",
+                          padding: "3px 8px",
+                          borderRadius: "var(--rounded-pill)",
+                          fontSize: "9px",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 500,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          background: "rgba(255, 255, 255, 0.1)",
+                          color: "var(--body-mid)",
+                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        Ads
+                      </div>
+                      {/* Name overlay on image */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "12px",
+                          left: "12px",
+                          right: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: 500,
+                            color: "white",
+                            letterSpacing: "-0.3px",
+                          }}
+                        >
+                          {SPONSORED_BARBERSHOP.name}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Info */}
+                    <div style={{ padding: "12px 12px 14px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        {/* Rating */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="#facc15"
+                            stroke="none"
+                          >
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                          </svg>
+                          <span style={{ fontSize: "14px", color: "var(--ink)", fontWeight: 500 }}>
+                            {SPONSORED_BARBERSHOP.rating}
+                          </span>
+                          <span style={{ fontSize: "12px", color: "var(--body-mid)" }}>
+                            ({SPONSORED_BARBERSHOP.reviewCount} reviews)
+                          </span>
+                        </div>
+                        {/* Maps arrow */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            color: "var(--body-mid)",
+                            fontFamily: "var(--font-mono)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          Buka Maps
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M7 17L17 7M17 7H7M17 7v10" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Specialties */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {SPONSORED_BARBERSHOP.specialties.map((spec) => (
+                          <span
+                            key={spec}
+                            style={{
+                              fontSize: "10px",
+                              fontFamily: "var(--font-mono)",
+                              padding: "3px 8px",
+                              borderRadius: "var(--rounded-pill)",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              border: "1px solid var(--hairline)",
+                              color: "var(--body)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                            }}
+                          >
+                            {spec}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </a>
+
+                {/* Horizontal Scroll Gallery */}
+                <div
+                  className="fmc-scroll-hide"
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    overflowX: paymentStatus === "unlocked" ? "auto" : "hidden",
+                    paddingBottom: "8px",
+                    marginLeft: "-24px",
+                    marginRight: "-24px",
+                    paddingLeft: "24px",
+                    paddingRight: "24px",
+                    scrollSnapType: "x mandatory",
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "none",
+                    filter: paymentStatus !== "unlocked" ? "blur(6px)" : "none",
+                    opacity: paymentStatus !== "unlocked" ? 0.6 : 1,
+                    pointerEvents: paymentStatus !== "unlocked" ? "none" : "auto",
+                    transition: "filter 0.3s ease, opacity 0.3s ease",
+                  }}
+                >
+                  {BARBERSHOPS.map((shop) => (
+                    <a
+                      key={shop.id}
+                      href={getGoogleMapsUrl(shop)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        minWidth: "200px",
+                        maxWidth: "200px",
+                        scrollSnapAlign: "start",
+                        flexShrink: 0,
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                    >
+                      {/* Card */}
+                      <div
+                        style={{
+                          background: "var(--canvas-card)",
+                          border: "1px solid var(--hairline)",
+                          borderRadius: "var(--rounded-sm)",
+                          overflow: "hidden",
+                          transition: "border-color 0.2s ease",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {/* Photo */}
+                        <div
+                          style={{
+                            width: "100%",
+                            height: "120px",
+                            position: "relative",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <img
+                            src={shop.photo}
+                            alt={shop.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                          {/* Open/Closed Badge */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "8px",
+                              right: "8px",
+                              padding: "2px 8px",
+                              borderRadius: "var(--rounded-pill)",
+                              fontSize: "10px",
+                              fontFamily: "var(--font-mono)",
+                              fontWeight: 500,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              background: shop.openNow
+                                ? "rgba(34, 197, 94, 0.15)"
+                                : "rgba(239, 68, 68, 0.15)",
+                              color: shop.openNow ? "#22c55e" : "#ef4444",
+                              border: shop.openNow
+                                ? "1px solid rgba(34, 197, 94, 0.3)"
+                                : "1px solid rgba(239, 68, 68, 0.3)",
+                              backdropFilter: "blur(8px)",
+                            }}
+                          >
+                            {shop.openNow ? "Buka" : "Tutup"}
+                          </div>
+                        </div>
+
+                        {/* Info */}
+                        <div style={{ padding: "12px" }}>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 500,
+                              color: "var(--ink)",
+                              marginBottom: "6px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {shop.name}
+                          </div>
+
+                          {/* Rating */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="#facc15"
+                              stroke="none"
+                            >
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: "var(--ink)",
+                                fontWeight: 500,
+                              }}
+                            >
+                              {shop.rating}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: "var(--body-mid)",
+                              }}
+                            >
+                              ({shop.reviewCount})
+                            </span>
+                          </div>
+
+                          {/* Specialties */}
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "4px",
+                            }}
+                          >
+                            {shop.specialties.slice(0, 2).map((spec) => (
+                              <span
+                                key={spec}
+                                style={{
+                                  fontSize: "10px",
+                                  fontFamily: "var(--font-mono)",
+                                  padding: "2px 6px",
+                                  borderRadius: "var(--rounded-pill)",
+                                  background: "rgba(255, 255, 255, 0.05)",
+                                  border: "1px solid var(--hairline)",
+                                  color: "var(--body)",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                {spec}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+
+                {/* Locked Overlay for Free Tier */}
+                {paymentStatus !== "unlocked" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "12px",
+                      zIndex: 5,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "50%",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div
+                        className="fmc-body--sm"
+                        style={{ color: "var(--ink)", fontWeight: 500, marginBottom: "4px" }}
+                      >
+                        Lokasi Barbershop Terkunci
+                      </div>
+                      <div
+                        className="fmc-caption-mono"
+                        style={{ color: "var(--body-mid)", fontSize: "11px" }}
+                      >
+                        Upgrade ke Pro untuk rekomendasi terdekat
+                      </div>
+                    </div>
+                    <button
+                      className="fmc-button--outline"
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "12px",
+                        marginTop: "4px",
+                      }}
+                      onClick={() => {
+                        setPaymentStatus("checkout");
+                        setSelectedTier("pro");
+                      }}
+                    >
+                      Unlock Pro
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1165,6 +1677,398 @@ function App() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Barbershop Terdekat in Detail View */}
+            <div style={{ padding: "0 24px 32px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "16px",
+                }}
+              >
+                <div className="fmc-eyebrow-mono">Rekomendasi Barbershop</div>
+                {paymentStatus === "unlocked" && userLocation ? (
+                  <div
+                    className="fmc-caption-mono"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      color: "#22c55e",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    Nearby
+                  </div>
+                ) : (
+                  <div
+                    className="fmc-caption-mono"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      color: "var(--body-mid)",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Pro
+                  </div>
+                )}
+              </div>
+
+              <div style={{ position: "relative" }}>
+                {/* Sponsored Barbershop Card */}
+                <a
+                  href={getGoogleMapsUrl(SPONSORED_BARBERSHOP)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "block",
+                    textDecoration: "none",
+                    color: "inherit",
+                    marginBottom: "12px",
+                    filter: paymentStatus !== "unlocked" ? "blur(6px)" : "none",
+                    opacity: paymentStatus !== "unlocked" ? 0.6 : 1,
+                    pointerEvents: paymentStatus !== "unlocked" ? "none" : "auto",
+                    transition: "filter 0.3s ease, opacity 0.3s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      background: "var(--canvas-card)",
+                      border: "1px solid var(--hairline)",
+                      borderRadius: "var(--rounded-sm)",
+                      overflow: "hidden",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "140px",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <img
+                        src={SPONSORED_BARBERSHOP.photo}
+                        alt={SPONSORED_BARBERSHOP.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "linear-gradient(transparent 40%, rgba(0,0,0,0.8))",
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          left: "8px",
+                          padding: "2px 7px",
+                          borderRadius: "var(--rounded-pill)",
+                          fontSize: "9px",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 500,
+                          textTransform: "uppercase",
+                          letterSpacing: "1px",
+                          background: "rgba(255, 255, 255, 0.1)",
+                          color: "var(--body)",
+                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        Sponsored
+                      </div>
+                      {/* Ads badge */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          padding: "2px 7px",
+                          borderRadius: "var(--rounded-pill)",
+                          fontSize: "9px",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 500,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          background: "rgba(255, 255, 255, 0.1)",
+                          color: "var(--body-mid)",
+                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        Ads
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "10px",
+                          left: "10px",
+                          right: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "16px",
+                            fontWeight: 500,
+                            color: "white",
+                            letterSpacing: "-0.3px",
+                          }}
+                        >
+                          {SPONSORED_BARBERSHOP.name}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ padding: "10px 12px 12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15" stroke="none">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                          </svg>
+                          <span style={{ fontSize: "12px", color: "var(--ink)", fontWeight: 500 }}>
+                            {SPONSORED_BARBERSHOP.rating}
+                          </span>
+                          <span style={{ fontSize: "11px", color: "var(--body-mid)" }}>
+                            ({SPONSORED_BARBERSHOP.reviewCount})
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            fontSize: "10px",
+                            color: "var(--body-mid)",
+                            fontFamily: "var(--font-mono)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          Maps
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M7 17L17 7M17 7H7M17 7v10" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+
+                {/* Horizontal Scroll Gallery */}
+                <div
+                  className="fmc-scroll-hide"
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    overflowX: paymentStatus === "unlocked" ? "auto" : "hidden",
+                    paddingBottom: "8px",
+                    scrollSnapType: "x mandatory",
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "none",
+                    filter: paymentStatus !== "unlocked" ? "blur(6px)" : "none",
+                    opacity: paymentStatus !== "unlocked" ? 0.6 : 1,
+                    pointerEvents: paymentStatus !== "unlocked" ? "none" : "auto",
+                    transition: "filter 0.3s ease, opacity 0.3s ease",
+                  }}
+                >
+                  {BARBERSHOPS.map((shop) => (
+                    <a
+                      key={shop.id}
+                      href={getGoogleMapsUrl(shop)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        minWidth: "180px",
+                        maxWidth: "180px",
+                        scrollSnapAlign: "start",
+                        flexShrink: 0,
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: "var(--canvas-card)",
+                          border: "1px solid var(--hairline)",
+                          borderRadius: "var(--rounded-sm)",
+                          overflow: "hidden",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "100%",
+                            height: "100px",
+                            position: "relative",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <img
+                            src={shop.photo}
+                            alt={shop.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        </div>
+                        <div style={{ padding: "10px" }}>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 500,
+                              color: "var(--ink)",
+                              marginBottom: "4px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {shop.name}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <svg
+                              width="11"
+                              height="11"
+                              viewBox="0 0 24 24"
+                              fill="#facc15"
+                              stroke="none"
+                            >
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: "var(--ink)",
+                                fontWeight: 500,
+                              }}
+                            >
+                              {shop.rating}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--body-mid)",
+                              }}
+                            >
+                              ({shop.reviewCount})
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+
+                {/* Locked Overlay for Free Tier */}
+                {paymentStatus !== "unlocked" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "10px",
+                      zIndex: 5,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div
+                        className="fmc-body--sm"
+                        style={{ color: "var(--ink)", fontWeight: 500, marginBottom: "2px" }}
+                      >
+                        Lokasi Terkunci
+                      </div>
+                      <div
+                        style={{ color: "var(--body-mid)", fontSize: "11px" }}
+                      >
+                        Upgrade ke Pro
+                      </div>
+                    </div>
+                    <button
+                      className="fmc-button--outline"
+                      style={{
+                        padding: "6px 14px",
+                        fontSize: "11px",
+                      }}
+                      onClick={() => {
+                        setPaymentStatus("checkout");
+                        setSelectedTier("pro");
+                      }}
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2154,7 +3058,7 @@ function App() {
                         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop",
                     });
                     setIsLoginPopupOpen(false);
-                    handleStart();
+                    setIsLocationPopupOpen(true);
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -2184,7 +3088,7 @@ function App() {
                   }}
                   onClick={() => {
                     setIsLoginPopupOpen(false);
-                    handleStart();
+                    setIsLocationPopupOpen(true);
                   }}
                 >
                   Tetap Lanjutkan Tanpa Masuk
@@ -2193,6 +3097,271 @@ function App() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Location Permission Popup */}
+      {isLocationPopupOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 110,
+            background: "rgba(0, 0, 0, 0.8)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="fmc-card"
+            style={{
+              width: "90%",
+              maxWidth: "400px",
+              background: "#0f0f0f",
+              border: "1px solid #212327",
+              borderRadius: "16px",
+              padding: "32px 24px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            {/* Location Icon */}
+            <div
+              style={{
+                width: "64px",
+                height: "64px",
+                borderRadius: "50%",
+                background:
+                  locationStatus === "granted"
+                    ? "rgba(34, 197, 94, 0.1)"
+                    : locationStatus === "denied"
+                      ? "rgba(239, 68, 68, 0.1)"
+                      : "rgba(255, 255, 255, 0.05)",
+                border:
+                  locationStatus === "granted"
+                    ? "1px solid rgba(34, 197, 94, 0.2)"
+                    : locationStatus === "denied"
+                      ? "1px solid rgba(239, 68, 68, 0.2)"
+                      : "1px solid rgba(255, 255, 255, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "24px",
+                color:
+                  locationStatus === "granted"
+                    ? "#22c55e"
+                    : locationStatus === "denied"
+                      ? "#ef4444"
+                      : "white",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {locationStatus === "granted" ? (
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : locationStatus === "loading" ? (
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  style={{ animation: "spin 1s linear infinite" }}
+                >
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              ) : (
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              )}
+            </div>
+
+            {/* Title */}
+            <h3
+              className="fmc-display--xs"
+              style={{ marginBottom: "12px", fontWeight: "500", color: "white" }}
+            >
+              {locationStatus === "granted"
+                ? "Lokasi Ditemukan"
+                : locationStatus === "denied"
+                  ? "Akses Lokasi Ditolak"
+                  : "Izinkan Akses Lokasi"}
+            </h3>
+
+            {/* Description */}
+            <p
+              className="fmc-body--sm"
+              style={{ color: "var(--body-mid)", marginBottom: "24px", lineHeight: "1.5" }}
+            >
+              {locationStatus === "granted"
+                ? "Kami akan merekomendasikan barbershop terdekat berdasarkan lokasi Anda."
+                : locationStatus === "denied"
+                  ? "Anda tetap bisa melanjutkan tanpa lokasi. Rekomendasi barbershop terdekat tidak akan tersedia."
+                  : "Kami membutuhkan lokasi Anda untuk merekomendasikan barbershop terdekat setelah analisis selesai."}
+            </p>
+
+            {/* Coordinates display when granted */}
+            {locationStatus === "granted" && userLocation && (
+              <div
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  background: "var(--canvas-card)",
+                  border: "1px solid var(--hairline)",
+                  borderRadius: "var(--rounded-sm)",
+                  marginBottom: "24px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "12px",
+                  color: "var(--body)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>LAT {userLocation.lat.toFixed(4)}</span>
+                <span style={{ color: "var(--hairline)" }}>|</span>
+                <span>LNG {userLocation.lng.toFixed(4)}</span>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              {locationStatus === "idle" && (
+                <button
+                  className="fmc-button--primary"
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                  onClick={() => {
+                    setLocationStatus("loading");
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        setUserLocation({
+                          lat: position.coords.latitude,
+                          lng: position.coords.longitude,
+                        });
+                        setLocationStatus("granted");
+                      },
+                      () => {
+                        setLocationStatus("denied");
+                      },
+                      { enableHighAccuracy: true, timeout: 10000 }
+                    );
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  Izinkan Lokasi
+                </button>
+              )}
+
+              {locationStatus === "loading" && (
+                <button
+                  className="fmc-button--primary"
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    opacity: 0.6,
+                  }}
+                  disabled
+                >
+                  Mendeteksi lokasi...
+                </button>
+              )}
+
+              {(locationStatus === "granted" || locationStatus === "denied") && (
+                <button
+                  className="fmc-button--primary"
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                  onClick={() => {
+                    setIsLocationPopupOpen(false);
+                    setLocationStatus("idle");
+                    handleStart();
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                  Lanjutkan
+                </button>
+              )}
+
+              {locationStatus !== "loading" && locationStatus !== "granted" && (
+                <button
+                  className="fmc-button--outline"
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    fontSize: "14px",
+                    borderColor: "transparent",
+                  }}
+                  onClick={() => {
+                    setIsLocationPopupOpen(false);
+                    setLocationStatus("idle");
+                    handleStart();
+                  }}
+                >
+                  Lewati
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

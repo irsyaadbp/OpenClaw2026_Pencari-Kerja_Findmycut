@@ -261,6 +261,15 @@ button:disabled {
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .fmc-scanner {
   position: relative;
   overflow: hidden;
@@ -359,6 +368,15 @@ button:disabled {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--body-mid);
+}
+
+/* Hide scrollbar for horizontal scroll galleries */
+.fmc-scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+.fmc-scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Responsive Scaling */
