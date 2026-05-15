@@ -1,5 +1,4 @@
 import type { Tool } from "../runner";
-import { chatCompletion, parseJsonFromText } from "../lib/llm";
 
 export const rankerTools: Tool[] = [
   {
@@ -89,10 +88,9 @@ export const rankerTools: Tool[] = [
     },
     execute: async (params) => {
       try {
-        const response = await chatCompletion([
-          {
-            role: "system",
-            content: `Kamu adalah konsultan gaya rambut profesional yang ramah dan personal.
+        const { textCompletion } = await import("../lib/llm");
+        const response = await textCompletion(
+          `Kamu adalah konsultan gaya rambut profesional yang ramah dan personal.
 Tugasmu: jelaskan MENGAPA gaya rambut tertentu cocok untuk user ini.
 
 Rules:
@@ -103,10 +101,7 @@ Rules:
 - Tambahkan 1 maintenance tip
 - Jangan generic — harus terasa personal untuk user ini
 - Response dalam JSON format`,
-          },
-          {
-            role: "user",
-            content: `Jelaskan mengapa "${params.style_name}" cocok untuk user dengan:
+          `Jelaskan mengapa "${params.style_name}" cocok untuk user dengan:
 - Bentuk wajah: ${params.face_shape}
 - Tipe rambut: ${params.hair_texture || "tidak diketahui"}
 - Ketebalan: ${params.hair_thickness || "tidak diketahui"}
@@ -120,17 +115,15 @@ Return JSON:
   "detail_reasons": ["alasan 1", "alasan 2", "alasan 3"],
   "styling_tips": "tip styling spesifik",
   "maintenance_tips": "tip perawatan"
-}`,
-          },
-        ]);
+}`
+        );
 
-        const parsed = parseJsonFromText(response.content || "");
+        const { parseJsonFromText } = await import("../lib/llm");
+        const parsed = parseJsonFromText(response);
         if (parsed.main_reason) return parsed;
 
-        // Fallback if LLM response is unparseable
         return buildFallbackExplanation(params);
       } catch {
-        // Fallback to template if LLM fails
         return buildFallbackExplanation(params);
       }
     },

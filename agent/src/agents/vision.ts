@@ -21,11 +21,18 @@ export async function runVisionAgent(
 
   const result = await runAgent(
     { name: "Vision Agent", systemPrompt: SYSTEM_PROMPT, tools: visionTools, maxIterations: 10 },
-    `Analyze these photos and extract face/hair features:\n\n${photoList}`,
+    `Analyze these photos and extract face/hair features:\n\n${photoList}\n\nAfter analysis, return the final FaceFeatures JSON object as your response.`,
     onStep
   );
 
-  return result.output || {
+  // Try to extract features from output
+  const output = result.output;
+  if (output && output.face_shape) {
+    return output as FaceFeatures;
+  }
+
+  // Fallback defaults
+  return {
     face_shape: "oval", face_confidence: 0.5,
     hair_thickness: "medium", hair_texture: "straight",
     hairline: "medium", forehead_size: "medium", jawline: "soft",
