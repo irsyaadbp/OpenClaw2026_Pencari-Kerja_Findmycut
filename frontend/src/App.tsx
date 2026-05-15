@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import html2canvas from "html2canvas";
 import "./index.css";
 
@@ -10,7 +10,15 @@ import { generateExportFilename } from "./lib/export";
 import { type CaptureAngle, getInitialCaptureAngle, getNextCaptureAngle, isFinalAngle } from "./lib/capture-flow";
 import { DEMO_FACES } from "./data/demo-faces";
 import { BARBERSHOPS, SPONSORED_BARBERSHOP, getGoogleMapsUrl } from "./data/barbershops";
-import { authClient } from "./lib/auth-client";
+import { useAuth } from "./hooks/useAuth";
+import { useUpload } from "./hooks/useUpload";
+import { useAnalysis } from "./hooks/useAnalysis";
+import { useRecommendations } from "./hooks/useRecommendations";
+import { ProgressFeed } from "./components/ProgressFeed";
+import { ResultsDisplay } from "./components/ResultsDisplay";
+import { sortEntriesChronologically } from "./lib/progress-utils";
+import { HeaderNav } from "./components/HeaderNav";
+import { ErrorMessage } from "./components/ErrorMessage";
 
 function App() {
   const [stage, setStage] = useState<Stage>("landing");
@@ -30,21 +38,83 @@ function App() {
   const [currentCaptureAngle, setCurrentCaptureAngle] = useState<CaptureAngle>(
     getInitialCaptureAngle()
   );
-  const [user, setUser] = useState<{ name: string; email: string; photo: string } | null>(null);
   const [isLoginPopupOpen, setIsLoginPopupOpen] = useState(false);
   const [isLocationPopupOpen, setIsLocationPopupOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "granted" | "denied">("idle");
+  const [authError, setAuthError] = useState<string | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // --- Real API Hooks ---
+
+  // Recommendations hook (no options needed)
+  const recommendations = useRecommendations();
+
+  // Auth hook: manages user state, sign-in, sign-out
+  const handleStateReset = useCallback(() => {
+    setStage("landing");
+    setPaymentStatus("locked");
+    setSelectedFace(null);
+    setSelectedTier(null);
+    setSelectedPreviewId(1);
+    setIsDetailPopupOpen(false);
+  }, []);
+
+  const handleAuthStageTransition = useCallback((nextStage: "upload") => {
+    setStage(nextStage);
+  }, []);
+
+  const handleAuthError = useCallback((message: string) => {
+    setAuthError(message);
+  }, []);
+
+  const auth = useAuth({
+    onStateReset: handleStateReset,
+    onStageTransition: handleAuthStageTransition,
+    onError: handleAuthError,
+  });
+
+  // Upload hook: manages file upload with stage transition to "scan"
+  const handleUploadStageTransition = useCallback((nextStage: "scan") => {
+    setStage(nextStage);
+  }, []);
+
+  const upload = useUpload({
+    onStageTransition: handleUploadStageTransition,
+  });
+
+  // Analysis hook: manages analysis polling with stage transition to "results"
+  const handleAnalysisStageTransition = useCallback((nextStage: "results") => {
+    setStage(nextStage);
+  }, []);
+
+  const analysis = useAnalysis({
+    onStageTransition: handleAnalysisStageTransition,
+  });
+
+  // Fetch recommendations when stage transitions to "results" and analysisId is available
+  useEffect(() => {
+    if (stage === "results" && analysis.analysisId) {
+      void recommendations.fetchRecommendations(analysis.analysisId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, analysis.analysisId]);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
-      handleSelectFace(url);
+      setSelectedFace(url);
+      // Upload via real API (gallery → File → FormData)
+      void upload.uploadFile(file).then((result) => {
+        if (result && auth.user) {
+          // Trigger analysis after successful upload
+          void analysis.startAnalysis(auth.user.id, result.url);
+        }
+      });
     }
   };
 
@@ -96,14 +166,15 @@ function App() {
           stream?.getTracks().forEach((track) => track.stop());
           setIsCameraActive(false);
 
-          // Go to scanning
-          setSelectedFace(capturedAngles.depan || pendingFaceUrl || dataUrl);
-          setStage(getNextStage(stage, "face_selected"));
-          setTimeout(() => {
-            setStage(getNextStage("scan", "scan_complete"));
-            setSelectedTier("pro");
-            setPaymentStatus("checkout"); // Auto trigger payment lock after multi-scan
-          }, 2500);
+          // Use the front-facing capture for upload
+          const faceUrl = capturedAngles.depan || pendingFaceUrl || dataUrl;
+          setSelectedFace(faceUrl);
+          // Upload via real API (camera → data URL → File → FormData)
+          void upload.uploadFromCamera(faceUrl).then((result) => {
+            if (result && auth.user) {
+              void analysis.startAnalysis(auth.user.id, result.url);
+            }
+          });
         }
       }
     }
@@ -121,10 +192,21 @@ function App() {
 
   const handleSelectFace = (url: string) => {
     setSelectedFace(url);
-    setStage(getNextStage(stage, "face_selected"));
-    setTimeout(() => {
-      setStage(getNextStage("scan", "scan_complete"));
-    }, 2500);
+    // Upload via real API (demo face URL → fetch as blob → File → FormData)
+    void (async () => {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], "demo-face.jpg", { type: blob.type || "image/jpeg" });
+        const result = await upload.uploadFile(file);
+        if (result && auth.user) {
+          void analysis.startAnalysis(auth.user.id, result.url);
+        }
+      } catch {
+        // If fetch fails (e.g., CORS), fall back to data URL approach
+        setStage(getNextStage(stage, "face_selected"));
+      }
+    })();
   };
 
   const handlePreviewClick = (previewId: number, isLocked: boolean) => {
@@ -195,7 +277,7 @@ function App() {
           findmycut
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {stage !== "landing" && (
+          {stage === "results" && recommendations.data && (
             <button
               className="fmc-button--outline"
               style={{ fontSize: "12px", padding: "6px 12px" }}
@@ -210,67 +292,14 @@ function App() {
             </button>
           )}
 
-          {user ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                cursor: "pointer",
-              }}
-              onClick={() => {
-                if (confirm("Apakah Anda ingin logout?")) {
-                  setUser(null);
-                }
-              }}
-              title="Klik untuk logout"
-            >
-              <img
-                src={user.photo}
-                alt={user.name}
-                style={{ width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover" }}
-              />
-              <span style={{ fontSize: "12px", color: "white", fontWeight: "500" }}>
-                {user.name}
-              </span>
-            </div>
-          ) : (
-            <button
-              className="fmc-button--outline"
-              style={{
-                padding: "6px 12px",
-                fontSize: "12px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-              onClick={() => {
-                setUser({
-                  name: "Alex",
-                  email: "alex@gmail.com",
-                  photo:
-                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop",
-                });
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Google
-            </button>
-          )}
+          <HeaderNav
+            user={auth.user ? { name: auth.user.name, email: auth.user.email, image: auth.user.image, isAnonymous: auth.user.isAnonymous } : null}
+            isAuthenticated={auth.isAuthenticated}
+            isAnonymous={auth.isAnonymous}
+            isLoading={auth.isLoading}
+            onSignInGoogle={() => void auth.signInGoogle()}
+            onSignOut={() => void auth.signOut()}
+          />
         </div>
       </nav>
 
@@ -394,16 +423,23 @@ function App() {
             <button
               className="fmc-button--primary"
               style={{ width: "100%", fontSize: "16px", padding: "16px 32px" }}
+              disabled={auth.isLoading}
               onClick={() => {
-                if (user) {
+                if (auth.isAuthenticated) {
                   setIsLocationPopupOpen(true);
                 } else {
                   setIsLoginPopupOpen(true);
                 }
               }}
             >
-              Try Free
+              {auth.isLoading ? "Loading..." : "Try Free"}
             </button>
+            {authError && (
+              <ErrorMessage
+                message={authError}
+                onDismiss={() => setAuthError(null)}
+              />
+            )}
           </div>
         )}
 
@@ -495,7 +531,7 @@ function App() {
               />
             </div>
 
-            <div className="fmc-eyebrow-mono" style={{ marginBottom: "16px" }}>
+            {/* <div className="fmc-eyebrow-mono" style={{ marginBottom: "16px" }}>
               Atau coba dengan foto demo
             </div>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
@@ -509,13 +545,31 @@ function App() {
                     height: "72px",
                     objectFit: "cover",
                     borderRadius: "var(--rounded-sm)",
-                    cursor: "pointer",
+                    cursor: upload.isUploading ? "not-allowed" : "pointer",
                     border: "1px solid var(--hairline)",
+                    opacity: upload.isUploading ? 0.5 : 1,
                   }}
-                  onClick={() => handleSelectFace(face.url)}
+                  onClick={() => !upload.isUploading && handleSelectFace(face.url)}
                 />
               ))}
-            </div>
+            </div> */}
+
+            {/* Upload loading indicator */}
+            {upload.isUploading && (
+              <div style={{ marginTop: "24px", textAlign: "center" }}>
+                <div className="fmc-eyebrow-mono" style={{ color: "var(--body-mid)" }}>
+                  Uploading...
+                </div>
+              </div>
+            )}
+
+            {/* Upload error display */}
+            {upload.error && (
+              <ErrorMessage
+                message={upload.error}
+                onDismiss={() => upload.clearError()}
+              />
+            )}
           </div>
         )}
 
@@ -557,6 +611,25 @@ function App() {
                 }}
               ></div>
             </div>
+
+            {/* Progress Feed — real-time agent progress */}
+            <ProgressFeed entries={analysis.progress} />
+
+            {/* Analysis error with retry */}
+            {analysis.error && (
+              <div style={{ marginTop: "16px", textAlign: "center" }}>
+                <p style={{ color: "#ef4444", fontSize: "15px", marginBottom: "16px" }}>
+                  {analysis.error}
+                </p>
+                <button
+                  className="fmc-button--outline"
+                  style={{ fontSize: "14px", padding: "10px 24px" }}
+                  onClick={() => void analysis.retry()}
+                >
+                  Retry Analysis
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -632,43 +705,69 @@ function App() {
               gap: "32px",
             }}
           >
-            {/* Header Analysis */}
-            <div
-              className="fmc-card"
-              style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px" }}
-            >
-              <img
-                src={selectedFace!}
-                alt="Analyzed"
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "var(--rounded-pill)",
-                  objectFit: "cover",
-                }}
-                crossOrigin="anonymous"
-              />
-              <div>
-                <div className="fmc-eyebrow-mono" style={{ fontSize: "12px" }}>
-                  Analysis
-                </div>
-                <div className="fmc-body--md" style={{ fontWeight: 500 }}>
-                  Shape: <span style={{ color: "#22c55e" }}>Oval</span>
+            {/* Real recommendations from API */}
+            {recommendations.isLoading && (
+              <div style={{ textAlign: "center", padding: "48px 0" }}>
+                <div className="fmc-eyebrow-mono" style={{ color: "var(--body-mid)" }}>
+                  Loading recommendations...
                 </div>
               </div>
-              <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                <div className="fmc-caption-mono" style={{ color: "var(--body-mid)" }}>
-                  Hair Type
-                </div>
-                <div className="fmc-body--sm">Straight</div>
-              </div>
-            </div>
+            )}
 
-            <div>
-              <div
-                className="fmc-eyebrow-mono"
-                style={{ marginBottom: "16px", textAlign: "center" }}
-              >
+            {recommendations.error && (
+              <div style={{ padding: "48px 0" }}>
+                <ErrorMessage
+                  message={recommendations.error}
+                  actionLabel="Coba Lagi"
+                  onAction={() => recommendations.retry()}
+                />
+              </div>
+            )}
+
+            {recommendations.data && (
+              <ResultsDisplay data={recommendations.data} />
+            )}
+
+            {/* Fallback: show old PREVIEWS grid if no real data yet and not loading/error */}
+            {!recommendations.data && !recommendations.isLoading && !recommendations.error && (
+              <>
+                {/* Header Analysis */}
+                <div
+                  className="fmc-card"
+                  style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px" }}
+                >
+                  <img
+                    src={selectedFace!}
+                    alt="Analyzed"
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "var(--rounded-pill)",
+                      objectFit: "cover",
+                    }}
+                    crossOrigin="anonymous"
+                  />
+                  <div>
+                    <div className="fmc-eyebrow-mono" style={{ fontSize: "12px" }}>
+                      Analysis
+                    </div>
+                    <div className="fmc-body--md" style={{ fontWeight: 500 }}>
+                      Shape: <span style={{ color: "#22c55e" }}>Oval</span>
+                    </div>
+                  </div>
+                  <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                    <div className="fmc-caption-mono" style={{ color: "var(--body-mid)" }}>
+                      Hair Type
+                    </div>
+                    <div className="fmc-body--sm">Straight</div>
+                  </div>
+                </div>
+
+                <div>
+                  <div
+                    className="fmc-eyebrow-mono"
+                    style={{ marginBottom: "16px", textAlign: "center" }}
+                  >
                 Recommended Styles
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -1258,6 +1357,8 @@ function App() {
                 )}
               </div>
             </div>
+            </>
+            )}
 
             {/* Paywall CTA on main view */}
             {paymentStatus !== "unlocked" && (
@@ -3052,11 +3153,8 @@ function App() {
                     gap: "8px",
                   }}
                   onClick={async () => {
-                    await authClient.signIn.social({
-                        provider: "google",
-                        callbackURL: "http://localhost:5173",
-                    })
-
+                    setIsLoginPopupOpen(false);
+                    await auth.signInGoogle();
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -3086,7 +3184,8 @@ function App() {
                   }}
                   onClick={() => {
                     setIsLoginPopupOpen(false);
-                    setIsLocationPopupOpen(true);
+                    // Sign in anonymously and transition to upload stage
+                    void auth.signInAnonymous();
                   }}
                 >
                   Tetap Lanjutkan Tanpa Masuk
@@ -3220,29 +3319,7 @@ function App() {
                   : "Kami membutuhkan lokasi Anda untuk merekomendasikan barbershop terdekat setelah analisis selesai."}
             </p>
 
-            {/* Coordinates display when granted */}
-            {locationStatus === "granted" && userLocation && (
-              <div
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  background: "var(--canvas-card)",
-                  border: "1px solid var(--hairline)",
-                  borderRadius: "var(--rounded-sm)",
-                  marginBottom: "24px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "12px",
-                  color: "var(--body)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>LAT {userLocation.lat.toFixed(4)}</span>
-                <span style={{ color: "var(--hairline)" }}>|</span>
-                <span>LNG {userLocation.lng.toFixed(4)}</span>
-              </div>
-            )}
-
+            
             {/* Action Buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
               {locationStatus === "idle" && (
