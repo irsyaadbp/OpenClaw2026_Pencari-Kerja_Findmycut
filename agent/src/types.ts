@@ -11,23 +11,25 @@ export interface FaceFeatures {
   notes: string;
 }
 
+export interface AgentStep {
+  agent: string;
+  type: "start" | "complete" | "tool" | "error" | "skip" | "thinking" | "tool_call" | "tool_result";
+  message: string;
+  toolName?: string;
+  timestamp?: number | Date;
+}
+
 export interface StyleCandidate {
   name: string;
+  style_name: string;
   description: string;
   suitable_face_shapes: string[];
   suitable_hair_types: string[];
   suitable_thickness: string[];
   maintenance_level: string;
-  trending: boolean;
-  styling_tips: string;
-  barber_instruction: string;
-  reference_image_url: string;
-}
-
-export interface MatchResult {
-  style: StyleCandidate;
-  match_score: number;
-  reasons: string[];
+  reference_image_url?: string;
+  styling_tips?: string;
+  barber_instruction?: string;
 }
 
 export interface Recommendation {
@@ -39,25 +41,49 @@ export interface Recommendation {
   maintenance_tips: string;
   barber_instruction: string;
   reference_image_url: string;
-  image_urls: {
+  image_urls?: {
     front?: string;
     left?: string;
     right?: string;
     back?: string;
     top?: string;
   };
-  barbershop: any;
-}
-
-export interface AgentStep {
-  agent: string;
-  type: "thinking" | "tool_call" | "tool_result" | "complete" | "error";
-  message: string;
-  toolName?: string;
-  timestamp: Date;
 }
 
 export interface PipelineResult {
   features: FaceFeatures;
   recommendations: Recommendation[];
+  barbershops?: BarbershopMatchResult;
+}
+
+export interface BarbershopEntry {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  rating: number;
+  phone: string;
+  city: string;
+  specialties: string[];
+  price_range: string;
+  image: string | null;
+  google_place_id: string | null;
+}
+
+export interface BarbershopResult extends BarbershopEntry {
+  distance_km: number;
+}
+
+export interface BarbershopMatchResult {
+  barbershops: {
+    barbershop_id: string;
+    name: string;
+    match_reason: string;
+    recommended_style: string;
+    distance_km?: number;
+    rating?: number;
+    address?: string;
+    phone?: string;
+  }[];
 }

@@ -23,6 +23,7 @@ export async function runImageGenAgent(
     for (const img of result.output.images) {
       const rec = recommendations.find((r) => r.style_name === img.style_name);
       if (rec) {
+        if (!rec.image_urls) rec.image_urls = {};
         rec.image_urls.front = img.image_url;
         rec.reference_image_url = img.image_url;
       }

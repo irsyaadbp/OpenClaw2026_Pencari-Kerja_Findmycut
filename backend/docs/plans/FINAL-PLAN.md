@@ -295,6 +295,12 @@ RATE_LIMIT_WINDOW_MS=60000
    Tools: generate_hairstyle_image
    Output: reference images → R2
         ↓
+📍 Agent 5: Barbershop Finder (MiMo tool calling) — optional, pro-only
+   Tools: search_nearby_barbershops, get_barbershop_details, calculate_distance
+   Input: user lat/lng + recommended styles
+   Data: curated JSON base + Haversine distance (Google Places API optional)
+   Output: top 3 barbershops nearby
+        ↓
 📊 Result → DB → FE polls
 ```
 
