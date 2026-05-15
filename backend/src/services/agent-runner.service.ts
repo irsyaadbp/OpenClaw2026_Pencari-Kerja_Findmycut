@@ -74,13 +74,15 @@ async function executePipeline(
               step,
               message,
               toolCall: toolCall || undefined,
+              // Reasoning is embedded in "thinking" step messages
+              reasoning: step === "thinking" ? message : undefined,
             });
 
             if (step === "start") {
               await analysisRepo.updateStatus(analysisId, "processing", agent);
             }
 
-            log.info({ analysisId, agent, step }, `${message}`);
+            log.info({ analysisId, agent, step, toolCall }, `${message}`);
           } catch (logErr) {
             log.warn({ err: logErr, analysisId, agent }, "Failed to log agent step");
           }
