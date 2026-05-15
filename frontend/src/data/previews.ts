@@ -48,7 +48,7 @@ export const PREVIEWS: PreviewStyle[] = [
   {
     id: 3,
     style: "Messy Fringe",
-    url: "https://images.unsplash.com/photo-1582230200318-12c8b8686e08?q=80&w=400&auto=format&fit=crop",
+    url: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=400&auto=format&fit=crop",
     angles: {
       left: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=400&auto=format&fit=crop",
       right: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=400&auto=format&fit=crop",
