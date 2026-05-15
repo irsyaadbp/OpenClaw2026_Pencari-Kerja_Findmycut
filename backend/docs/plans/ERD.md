@@ -89,6 +89,27 @@
 │                                 │ embedding (VECTOR 1536)  │                │
 │                                 └──────────────────────────┘                │
 │                                                                             │
+│                                 ┌──────────────────────────┐                │
+│                                 │   barbershop_cache       │                │
+│                                 ├──────────────────────────┤                │
+│                                 │ id (PK, UUID)            │                │
+│                                 │ google_place_id (UQ)     │                │
+│                                 │ name                     │                │
+│                                 │ address                  │                │
+│                                 │ lat (FLOAT)              │                │
+│                                 │ lng (FLOAT)              │                │
+│                                 │ rating (FLOAT)           │                │
+│                                 │ phone                    │                │
+│                                 │ city                     │                │
+│                                 │ specialties (JSONB)      │                │
+│                                 │ price_range              │                │
+│                                 │ image_url                │                │
+│                                 │ area_key                 │                │
+│                                 │ source                   │                │
+│                                 │ fetched_at               │                │
+│                                 │ created_at               │                │
+│                                 └──────────────────────────┘                │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -185,6 +206,32 @@
 | styling_tips | TEXT | | |
 | barber_instruction | TEXT | | |
 | embedding | VECTOR(1536) | | pgvector for semantic search |
+
+### barbershop_cache
+| Column | Type | Constraint | Notes |
+|--------|------|-----------|-------|
+| id | UUID | PK, default random | |
+| google_place_id | VARCHAR(255) | UNIQUE, nullable | Google Places API ID |
+| name | VARCHAR(255) | NOT NULL | Nama barbershop |
+| address | TEXT | | Alamat lengkap |
+| lat | FLOAT | NOT NULL | Latitude |
+| lng | FLOAT | NOT NULL | Longitude |
+| rating | FLOAT | | Rating (1.0-5.0) |
+| phone | VARCHAR(50) | | Nomor telepon |
+| city | VARCHAR(100) | | Kota |
+| specialties | JSONB | | ["textured crop", "fade", ...] |
+| price_range | VARCHAR(50) | | "Rp50.000 - Rp100.000" |
+| image_url | TEXT | | URL foto barbershop |
+| area_key | VARCHAR(20) | NOT NULL | lat/lng dibulatkan 2 desimal, e.g. "-7.29_112.73" |
+| source | VARCHAR(20) | DEFAULT 'json' | "json" atau "google_maps" |
+| fetched_at | TIMESTAMPTZ | DEFAULT NOW() | Kapan data di-fetch (untuk TTL) |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Hybrid Strategy:**
+- `source = "json"` → data dari seed barbershops.json (gratis)
+- `source = "google_maps"` → data dari Google Maps Places API (berbayar)
+- `area_key` → cache key per area (~1km²), cegah hit API berulang
+- TTL: data `google_maps` expired setelah 7 hari → re-fetch jika user request lagi
 
 ---
 

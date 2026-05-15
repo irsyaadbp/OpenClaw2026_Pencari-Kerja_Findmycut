@@ -78,4 +78,29 @@ export const hairstyleEmbeddings = pgTable("hairstyle_embeddings", {
   referenceImageUrl: text("reference_image_url"),
   stylingTips: text("styling_tips"),
   barberInstruction: text("barber_instruction"),
+  // NOTE: embedding VECTOR(1536) akan ditambah via raw SQL migration
+  // karena Drizzle belum native support pgvector column type
+});
+
+// ============ BARBERSHOP CACHE ============
+// Hybrid: seed dari JSON lokal + enrich dari Google Maps Places API
+// Cache per area supaya tidak hit API berulang untuk lokasi yang sama
+export const barbershopCache = pgTable("barbershop_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  googlePlaceId: varchar("google_place_id", { length: 255 }).unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  address: text("address"),
+  lat: real("lat").notNull(),
+  lng: real("lng").notNull(),
+  rating: real("rating"),
+  phone: varchar("phone", { length: 50 }),
+  city: varchar("city", { length: 100 }),
+  specialties: jsonb("specialties"), // ["textured crop", "fade", ...]
+  priceRange: varchar("price_range", { length: 50 }),
+  imageUrl: text("image_url"),
+  // Cache management
+  areaKey: varchar("area_key", { length: 20 }).notNull(), // lat/lng dibulatkan 2 desimal, e.g. "-7.29_112.73"
+  source: varchar("source", { length: 20 }).default("json").notNull(), // "json" | "google_maps"
+  fetchedAt: timestamp("fetched_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
