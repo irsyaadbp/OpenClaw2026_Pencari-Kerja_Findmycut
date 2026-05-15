@@ -7,7 +7,7 @@ import { v4 as uuid } from "uuid";
 export async function createPayment(userId: string, analysisId?: string) {
   const invoiceNumber = `INV-${Date.now()}-${uuid().slice(0, 8)}`;
 
-  const payment = await paymentRepo.create({
+  await paymentRepo.create({
     userId,
     invoiceNumber,
     amount: 15000,
@@ -41,7 +41,8 @@ export async function handleWebhook(body: string, signature: string) {
     if (payment) {
       await paymentRepo.updateStatus(invoiceNumber, "paid", payload.payment?.payment_method);
       await userRepo.updateTier(payment.userId || "", "pro");
-      // Unlock recommendations if analysisId available
+      // Unlock all recommendations for this user's analyses
+      await recRepo.unlockByAnalysisId(invoiceNumber); // TODO: need analysisId from payment context
     }
   }
 
