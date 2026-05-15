@@ -1,4 +1,4 @@
-import { chatCompletion } from "../lib/llm";
+import { chatCompletion, type LlmTool } from "../lib/llm";
 import {
   barbershopTools,
   handleBarbershopToolAsync,
@@ -7,6 +7,7 @@ import {
   setGoogleMapsConfig,
 } from "../tools/barbershop-tools";
 import barbershopData from "../knowledge/barbershops.json";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { Recommendation, BarbershopMatchResult } from "../types";
 
 const SYSTEM_PROMPT = `You are a Barbershop Finder agent for FindMyCut.
@@ -31,6 +32,17 @@ Output format (JSON):
   ]
 }`;
 
+// Convert barbershop tools to Anthropic format
+const anthropicTools: LlmTool[] = barbershopTools.map((t) => ({
+  name: t.function.name,
+  description: t.function.description,
+  input_schema: {
+    type: "object" as const,
+    properties: t.function.parameters.properties || {},
+    required: t.function.parameters.required || [],
+  },
+}));
+
 export async function runBarbershopAgent(
   recommendations: Recommendation[],
   userLatitude?: number,
@@ -40,7 +52,6 @@ export async function runBarbershopAgent(
   loadBarbershopData(barbershopData as any);
 
   // Configure Google Maps if env vars available
-  // Agent runs in Bun process — env vars inherited from backend
   const env = (globalThis as any).process?.env || {};
   const mapsKey = env.GOOGLE_MAPS_API_KEY;
   const mapsRadius = parseInt(env.GOOGLE_MAPS_RADIUS || "5000");
@@ -68,48 +79,46 @@ export async function runBarbershopAgent(
 
   const styleNames = recommendations.map((r) => r.style_name).join(", ");
 
-  const messages = [
-    { role: "system" as const, content: SYSTEM_PROMPT },
+  const messages: Anthropic.MessageParam[] = [
     {
-      role: "user" as const,
-      content: `User location: ${userLatitude}, ${userLongitude}
-Recommended hairstyles: ${styleNames}
-
-Find the best nearby barbershops that match these styles. Search within 10km radius.`,
+      role: "user",
+      content: `${SYSTEM_PROMPT}\n\n---\n\nUser location: ${userLatitude}, ${userLongitude}\nRecommended hairstyles: ${styleNames}\n\nFind the best nearby barbershops that match these styles. Search within 10km radius.`,
     },
   ];
 
   try {
     // Multi-turn tool calling loop (max 3 rounds)
-    let currentMessages = [...messages];
-    let finalResponse = "";
-
     for (let round = 0; round < 3; round++) {
-      const response = await chatCompletion(currentMessages, barbershopTools);
-      const content = response.content || "";
-      const toolCalls = (response as any).tool_calls || [];
+      const response = await chatCompletion(messages, anthropicTools);
 
-      if (toolCalls.length === 0) {
+      const textBlocks = response.content.filter((b) => b.type === "text");
+      const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+
+      if (toolUseBlocks.length === 0) {
         // No more tool calls — final answer
-        finalResponse = content;
-        break;
+        const finalText = textBlocks.map((b) => (b as any).text).join("\n");
+        return parseBarbershopResult(finalText);
       }
 
-      // Process tool calls and add results
-      currentMessages.push(response as any);
-      for (const call of toolCalls) {
-        const fnName = call.function.name;
-        const args = JSON.parse(call.function.arguments);
-        const result = await handleBarbershopToolAsync(fnName, args);
-        currentMessages.push({
-          role: "tool" as any,
-          tool_call_id: call.id,
-          content: JSON.stringify(result),
-        } as any);
+      // Push assistant response
+      messages.push({ role: "assistant", content: response.content });
+
+      // Execute tools and push results
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      for (const block of toolUseBlocks) {
+        const toolUse = block as Anthropic.ToolUseBlock;
+        const result = await handleBarbershopToolAsync(toolUse.name, toolUse.input as any);
+        const resultStr = JSON.stringify(result);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: resultStr.length > 3000 ? resultStr.slice(0, 3000) + "..." : resultStr,
+        });
       }
+      messages.push({ role: "user", content: toolResults });
     }
 
-    return parseBarbershopResult(finalResponse);
+    return { barbershops: [] };
   } catch (err) {
     console.error("[Barbershop Agent] Error:", err);
     return null;
