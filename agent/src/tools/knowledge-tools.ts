@@ -66,13 +66,16 @@ export const knowledgeTools: Tool[] = [
       // Try DB first — get styles that match this face shape
       const dbStyles = await queryStylesByFaceShape(face_shape);
       if (dbStyles && dbStyles.length > 0) {
-        const recommended = dbStyles.map((s: any) => s.style_name);
+        // Limit to top 8 styles to avoid overwhelming the LLM context
+        const limited = dbStyles.slice(0, 8);
+        const recommended = limited.map((s: any) => s.style_name);
         const localGuide = (faceShapes as any)[face_shape];
         return {
           recommended,
           avoid: localGuide?.avoid || [],
-          notes: localGuide?.notes || `Styles from database for ${face_shape} face shape`,
+          notes: localGuide?.notes || `Top ${recommended.length} styles from database for ${face_shape} face shape`,
           source: "hybrid_db",
+          total_available: dbStyles.length,
         };
       }
 

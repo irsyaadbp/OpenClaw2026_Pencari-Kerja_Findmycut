@@ -10,16 +10,24 @@ export async function chatCompletion(
   tools?: any[],
   model?: string
 ) {
-  const response = await client.chat.completions.create({
-    model: model || process.env.MAIN_LLM_MODEL || "gpt-4o-mini",
-    messages,
-    tools: tools && tools.length > 0 ? tools : undefined,
-    tool_choice: tools && tools.length > 0 ? "auto" : undefined,
-    temperature: 0.1,
-    max_tokens: 2048,
-  });
+  try {
+    const response = await client.chat.completions.create({
+      model: model || process.env.MAIN_LLM_MODEL || "gpt-4o-mini",
+      messages,
+      tools: tools && tools.length > 0 ? tools : undefined,
+      tool_choice: tools && tools.length > 0 ? "auto" : undefined,
+      temperature: 0.1,
+      max_tokens: 2048,
+    });
 
-  return response.choices[0].message;
+    return response.choices[0].message;
+  } catch (err: any) {
+    // Log detailed error for debugging
+    const status = err?.status || err?.response?.status;
+    const detail = err?.error?.message || err?.message || "Unknown LLM error";
+    console.error(`[LLM] ${status} Error: ${detail}`);
+    throw new Error(`${status || ""} ${detail}`.trim());
+  }
 }
 
 export function parseJsonFromText(text: string): any {
