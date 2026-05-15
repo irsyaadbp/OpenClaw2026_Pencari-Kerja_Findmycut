@@ -54,21 +54,21 @@ bun run dev
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        SYSTEM ARCHITECTURE                           │
+│                        SYSTEM ARCHITECTURE                          │
 │                                                                     │
 │  ┌──────────┐     ┌──────────────────────────────────────────┐      │
 │  │  React   │────→│  Hono Server (port 3000)                 │      │
 │  │  Frontend│←────│                                          │      │
-│  │  :5173   │     │  Middleware Stack:                        │      │
+│  │  :5173   │     │  Middleware Stack:                       │      │
 │  └──────────┘     │  1. CORS (allow :5173)                   │      │
-│                   │  2. Pino Logger (structured logs)         │      │
-│                   │  3. Rate Limiter (10 req/min per IP)      │      │
-│                   │  4. Auth Middleware (extract session)      │      │
+│                   │  2. Pino Logger (structured logs)        │      │
+│                   │  3. Rate Limiter (10 req/min per IP)     │      │
+│                   │  4. Auth Middleware (extract session)    │      │
 │                   │                                          │      │
-│                   │  Routes → Services → Repositories         │      │
+│                   │  Routes → Services → Repositories        │      │
 │                   └──────┬───────────┬───────────┬───────────┘      │
-│                          │           │           │                   │
-│                          ↓           ↓           ↓                   │
+│                          │           │           │                  │
+│                          ↓           ↓           ↓                  │
 │                   ┌──────────┐ ┌──────────┐ ┌──────────────┐        │
 │                   │ Neon DB  │ │Cloudflare│ │Agent Pipeline│        │
 │                   │(Drizzle) │ │   R2     │ │ (5 AI agents)│        │
@@ -106,7 +106,7 @@ bun run dev
 │     POST /api/v1/uploads (multipart file or base64)                 │
 │     → Sharp converts to WebP (max 1080px, quality 80)               │
 │     → Uploads to Cloudflare R2                                      │
-│     → Returns: { url: "https://r2.dev/photos/uuid.webp" }          │
+│     → Returns: { url: "https://r2.dev/photos/uuid.webp" }           │
 │                                                                     │
 │  3. TRIGGER ANALYSIS                                                │
 │     POST /api/v1/analyses { user_id, image_url }                    │
@@ -125,7 +125,7 @@ bun run dev
 │  5. GET RESULTS (after status = "completed")                        │
 │     GET /api/v1/analyses/:id/recommendations                        │
 │     → Checks user tier from session                                 │
-│     → Free: 1 unlocked + rest locked (sorted lowest first)         │
+│     → Free: 1 unlocked + rest locked (sorted lowest first)          │
 │     → Pro: all unlocked (sorted highest first)                      │
 │     → Returns recommendations with images, barber instructions      │
 │                                                                     │

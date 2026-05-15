@@ -29,7 +29,7 @@ When a user uploads a selfie and triggers analysis, the backend calls `runPipeli
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         FULL PIPELINE FLOW                               │
+│                         FULL PIPELINE FLOW                              │
 │                                                                         │
 │  INPUT: Photo URL(s) from Cloudflare R2                                 │
 │                                                                         │
@@ -37,25 +37,25 @@ When a user uploads a selfie and triggers analysis, the backend calls `runPipeli
 │  │ AGENT 1: Vision Analyzer                                        │    │
 │  │                                                                 │    │
 │  │ 1. Receives photo URL                                           │    │
-│  │ 2. LLM decides to call analyze_image tool                      │    │
-│  │ 3. Tool sends photo to GLM-5-Turbo multimodal endpoint         │    │
-│  │ 4. GLM-5-Turbo "sees" the photo and returns structured JSON:   │    │
-│  │    { face_shape: "oval", hair_texture: "straight", ... }       │    │
-│  │ 5. If multiple photos: LLM calls merge_analyses to combine     │    │
+│  │ 2. LLM decides to call analyze_image tool                       │    │
+│  │ 3. Tool sends photo to GLM-5-Turbo multimodal endpoint          │    │
+│  │ 4. GLM-5-Turbo "sees" the photo and returns structured JSON:    │    │
+│  │    { face_shape: "oval", hair_texture: "straight", ... }        │    │
+│  │ 5. If multiple photos: LLM calls merge_analyses to combine      │    │
 │  │ 6. Returns final FaceFeatures                                   │    │
 │  │                                                                 │    │
 │  │ Output: { face_shape, face_confidence, hair_thickness,          │    │
 │  │           hair_texture, hairline, jawline, forehead_size }      │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
-│                                 ↓                                        │
+│                                 ↓                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │ AGENT 2: Knowledge / Style Matcher                              │    │
 │  │                                                                 │    │
 │  │ 1. Receives FaceFeatures from Agent 1                           │    │
-│  │ 2. LLM calls query_face_shape_guide("oval")                    │    │
+│  │ 2. LLM calls query_face_shape_guide("oval")                     │    │
 │  │    → Returns recommended styles for oval face                   │    │
-│  │ 3. For each style, LLM calls query_hair_compatibility          │    │
-│  │    → Checks if style works with user's hair type               │    │
+│  │ 3. For each style, LLM calls query_hair_compatibility           │    │
+│  │    → Checks if style works with user's hair type                │    │
 │  │ 4. For compatible styles, LLM calls get_style_details           │    │
 │  │    → Gets full barber instructions, styling tips                │    │
 │  │ 5. Returns list of compatible candidates                        │    │
@@ -68,36 +68,36 @@ When a user uploads a selfie and triggers analysis, the backend calls `runPipeli
 │  │                                                                 │    │
 │  │ Output: StyleCandidate[] (3-6 hairstyles with full details)     │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
-│                                 ↓                                        │
+│                                 ↓                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │ AGENT 3: Ranker & Explainer                                     │    │
 │  │                                                                 │    │
 │  │ 1. Receives FaceFeatures + StyleCandidates                      │    │
 │  │ 2. For each candidate, LLM calls calculate_match_score          │    │
-│  │    → Weighted scoring: face 25% + hair 15% + thickness 10%     │    │
+│  │    → Weighted scoring: face 25% + hair 15% + thickness 10%      │    │
 │  │ 3. Sorts by score, picks top 3                                  │    │
 │  │ 4. For top 3, LLM calls generate_explanation                    │    │
 │  │    → This tool INTERNALLY calls LLM again to write a personal   │    │
-│  │      explanation in Indonesian (not a template!)                 │    │
+│  │      explanation in Indonesian (not a template!)                │    │
 │  │ 5. For top 3, LLM calls validate_recommendation                 │    │
 │  │    → Self-checks: is score consistent with features?            │    │
 │  │    → Removes any that fail validation                           │    │
 │  │ 6. Returns final ranked JSON                                    │    │
 │  │                                                                 │    │
 │  │ Guarantee: If LLM parse fails, builds recommendations from      │    │
-│  │            candidates directly (never returns 0)                 │    │
+│  │            candidates directly (never returns 0)                │    │
 │  │                                                                 │    │
 │  │ Output: Recommendation[] (top 3 with scores + explanations)     │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
-│                                 ↓                                        │
+│                                 ↓                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │ AGENT 4: Image Generator                                        │    │
 │  │                                                                 │    │
 │  │ 1. Receives top 1 recommendation                                │    │
-│  │ 2. LLM calls generate_hairstyle_image tool                     │    │
+│  │ 2. LLM calls generate_hairstyle_image tool                      │    │
 │  │ 3. Tool builds prompt: "Professional photo of man with          │    │
 │  │    [style name] haircut, studio lighting, front view"           │    │
-│  │ 4. Calls Replicate flux-2-pro API → generates image            │    │
+│  │ 4. Calls Replicate flux-2-pro API → generates image             │    │
 │  │ 5. Returns image URL (replicate.delivery/...)                   │    │
 │  │ 6. URL is captured and mapped back to recommendation            │    │
 │  │                                                                 │    │
@@ -106,14 +106,14 @@ When a user uploads a selfie and triggers analysis, the backend calls `runPipeli
 │  │                                                                 │    │
 │  │ Output: recommendation.image_urls.front = R2 URL                │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
-│                                 ↓                                        │
+│                                 ↓                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │ AGENT 5: Barbershop Finder (optional — needs user location)     │    │
 │  │                                                                 │    │
 │  │ Skipped if no lat/lng provided.                                 │    │
 │  │                                                                 │    │
 │  │ 1. Receives recommendations + user coordinates                  │    │
-│  │ 2. LLM calls search_nearby_barbershops(lat, lng, radius)       │    │
+│  │ 2. LLM calls search_nearby_barbershops(lat, lng, radius)        │    │
 │  │    → Hybrid: DB cache → Google Maps API → JSON fallback         │    │
 │  │    → Calculates Haversine distance to each barbershop           │    │
 │  │ 3. LLM matches barbershop specialties with recommended styles   │    │
@@ -139,7 +139,7 @@ When a user uploads a selfie and triggers analysis, the backend calls `runPipeli
 Every agent (except Vision's image analysis) uses the same autonomous loop:
 
 ```
-┌─────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────┐
 │            AUTONOMOUS AGENT LOOP                 │
 │                                                  │
 │  1. Send system prompt + user message to LLM     │
@@ -148,7 +148,7 @@ Every agent (except Vision's image analysis) uses the same autonomous loop:
 │     ├── tool_use blocks → execute tools          │
 │     │   ├── Run tool function                    │
 │     │   ├── Get result                           │
-│     │   └── Feed result back to LLM             │
+│     │   └── Feed result back to LLM              │
 │     │        ↓                                   │
 │     │   (loop back to step 2)                    │
 │     │                                            │
@@ -157,7 +157,7 @@ Every agent (except Vision's image analysis) uses the same autonomous loop:
 │                                                  │
 │  Max iterations: 8-15 (varies per agent)         │
 │  Error recovery: retry with context on failure   │
-└─────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────┘
 ```
 
 The LLM **autonomously decides**:
