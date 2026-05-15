@@ -10,7 +10,6 @@ import { generateExportFilename } from "./lib/export";
 import { type CaptureAngle, getInitialCaptureAngle, getNextCaptureAngle, isFinalAngle } from "./lib/capture-flow";
 import { DEMO_FACES } from "./data/demo-faces";
 import { BARBERSHOPS, SPONSORED_BARBERSHOP, getGoogleMapsUrl } from "./data/barbershops";
-import { authClient } from "./lib/auth-client";
 
 function App() {
   const [stage, setStage] = useState<Stage>("landing");
@@ -3051,17 +3050,13 @@ function App() {
                     justifyContent: "center",
                     gap: "8px",
                   }}
-                  onClick={async () => {
-                    // setUser({
-                    //   name: "Alex",
-                    //   email: "alex@gmail.com",
-                    //   photo:
-                    //     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop",
-                    // });
-
-                    await authClient.signIn.social({
-                        provider: "google",
-                    })
+                  onClick={() => {
+                    setUser({
+                      name: "Alex",
+                      email: "alex@gmail.com",
+                      photo:
+                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop",
+                    });
                     setIsLoginPopupOpen(false);
                     setIsLocationPopupOpen(true);
                   }}
