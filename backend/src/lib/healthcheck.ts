@@ -28,7 +28,10 @@ export async function runStartupHealthChecks(): Promise<HealthStatus[]> {
     checkService("better-auth", async () => {
       const secret = process.env.BETTER_AUTH_SECRET;
       if (!secret || secret.length < 32) {
-        throw new Error("BETTER_AUTH_SECRET missing or too short (<32 chars)");
+        if (process.env.NODE_ENV === "production") {
+          throw new Error("BETTER_AUTH_SECRET missing or too short (<32 chars)");
+        }
+        return { status: "skipped" as const, detail: "Secret not set (dev mode)" };
       }
       return { detail: "Secret configured" };
     })

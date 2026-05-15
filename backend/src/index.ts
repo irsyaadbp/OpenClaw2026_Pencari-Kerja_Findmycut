@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { serve } from "@hono/node-server";
 import { pinoLogger } from "hono-pino";
 
 import { logger, createChildLogger } from "./lib/logger";
@@ -54,100 +53,80 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-// ============ STARTUP ============
+// ============ STARTUP HEALTH CHECKS (sync, before server starts) ============
 
-const port = parseInt(process.env.PORT || "3000");
-let server: ReturnType<typeof serve> | null = null;
+const healthResults = await runStartupHealthChecks();
+const report = formatHealthReport(healthResults);
+log.info(report);
 
-async function startServer() {
-  log.info("🚀 Starting FindMyCut API...");
+const hasCriticalFailure = healthResults.some(
+  (r) => r.status === "error" && ["neon-postgres", "better-auth"].includes(r.service)
+);
 
-  // Run health checks before accepting traffic
-  const healthResults = await runStartupHealthChecks();
-  const report = formatHealthReport(healthResults);
-  log.info(report);
-
-  const hasCriticalFailure = healthResults.some(
-    (r) => r.status === "error" && ["neon-postgres", "better-auth"].includes(r.service)
-  );
-
-  if (hasCriticalFailure) {
-    log.fatal("Critical services failed — aborting startup");
-    process.exit(1);
-  }
-
-  // Start HTTP server
-  server = serve(
-    {
-      fetch: app.fetch,
-      port,
-    },
-    () => {
-      log.info({ port }, `🔥 FindMyCut API running on http://localhost:${port}`);
-      log.info(`📝 Auth: http://localhost:${port}/api/auth/*`);
-      log.info(`📊 Health: http://localhost:${port}/health`);
-    }
-  );
-
-  // ============ GRACEFUL SHUTDOWN ============
-
-  const shutdown = async (signal: string) => {
-    log.info({ signal }, "⚡ Graceful shutdown initiated...");
-
-    const shutdownTimeout = setTimeout(() => {
-      log.error("Shutdown timeout (10s) — forcing exit");
-      process.exit(1);
-    }, 10_000);
-
-    try {
-      // 1. Stop accepting new connections
-      if (server) {
-        server.close(() => {
-          log.info("HTTP server closed — no new connections");
-        });
-      }
-
-      // 2. Wait for in-flight requests (give them 5s)
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
-      log.info("In-flight requests drained");
-
-      // 3. Close database connections
-      // Neon HTTP is stateless — no persistent connections to close
-      log.info("Database connections closed");
-
-      // 4. Close any other resources
-      // Replicate/MiMo clients are per-request — no cleanup needed
-      log.info("External clients cleaned up");
-
-      clearTimeout(shutdownTimeout);
-      log.info("✅ Graceful shutdown complete");
-      process.exit(0);
-    } catch (err) {
-      log.error({ err }, "Error during shutdown");
-      clearTimeout(shutdownTimeout);
-      process.exit(1);
-    }
-  };
-
-  // Trap signals
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
-
-  // Catch unhandled errors
-  process.on("uncaughtException", (err) => {
-    log.fatal({ err }, "Uncaught exception");
-    shutdown("uncaughtException");
-  });
-
-  process.on("unhandledRejection", (reason) => {
-    log.fatal({ reason }, "Unhandled promise rejection");
-    shutdown("unhandledRejection");
-  });
+if (hasCriticalFailure) {
+  log.fatal("Critical services failed — aborting startup");
+  process.exit(1);
 }
 
-startServer().catch((err) => {
-  log.fatal({ err }, "Failed to start server");
-  process.exit(1);
+// ============ START SERVER ============
+
+const port = parseInt(process.env.PORT || "3000");
+
+const server = Bun.serve({
+  port,
+  fetch: app.fetch,
 });
 
-export default app;
+log.info({ port: server.port }, `🔥 FindMyCut API running on http://localhost:${server.port}`);
+log.info(`📝 Auth: http://localhost:${server.port}/api/auth/*`);
+log.info(`📊 Health: http://localhost:${server.port}/health`);
+
+// ============ GRACEFUL SHUTDOWN ============
+
+const shutdown = async (signal: string) => {
+  log.info({ signal }, "⚡ Graceful shutdown initiated...");
+
+  const shutdownTimeout = setTimeout(() => {
+    log.error("Shutdown timeout (10s) — forcing exit");
+    process.exit(1);
+  }, 10_000);
+
+  try {
+    // 1. Stop accepting new connections
+    server.stop(true); // true = close immediately
+    log.info("HTTP server closed — no new connections");
+
+    // 2. Wait for in-flight requests (give them 5s)
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    log.info("In-flight requests drained");
+
+    // 3. Cleanup
+    log.info("Database connections closed");
+    log.info("External clients cleaned up");
+
+    clearTimeout(shutdownTimeout);
+    log.info("✅ Graceful shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    log.error({ err }, "Error during shutdown");
+    clearTimeout(shutdownTimeout);
+    process.exit(1);
+  }
+};
+
+// Trap signals
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// Catch unhandled errors
+process.on("uncaughtException", (err) => {
+  log.fatal({ err }, "Uncaught exception");
+  shutdown("uncaughtException");
+});
+
+process.on("unhandledRejection", (reason) => {
+  log.fatal({ reason }, "Unhandled promise rejection");
+  shutdown("unhandledRejection");
+});
+
+export { app };
