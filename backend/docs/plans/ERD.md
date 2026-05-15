@@ -1,102 +1,117 @@
 # FindMyCut — Entity Relationship Diagram (ERD)
 
-> **Last updated:** 15 Mei 2026, 12:58 WIB
+> **Last updated:** 15 Mei 2026, 13:20 WIB
 
 ---
 
 ## ERD (Text Diagram)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                                                                         │
-│   ┌──────────────┐         ┌──────────────────┐                         │
-│   │    users     │         │    payments      │                         │
-│   ├──────────────┤         ├──────────────────┤                         │
-│   │ id (PK)      │───┐     │ id (PK)          │                         │
-│   │ username      │   │     │ user_id (FK) ────│──→ users.id             │
-│   │ password_hash │   │     │ invoice_number   │                         │
-│   │ tier          │   │     │ amount           │                         │
-│   │ created_at    │   │     │ status           │                         │
-│   └──────────────┘   │     │ doku_session_id  │                         │
-│         │             │     │ doku_token_id    │                         │
-│         │             │     │ payment_method   │                         │
-│         │             │     │ paid_at          │                         │
-│         │             │     │ created_at       │                         │
-│         │             │     └──────────────────┘                         │
-│         │             │                                                  │
-│         │             │     ┌──────────────────┐                         │
-│         │             ├────→│      jobs        │                         │
-│         │             │     ├──────────────────┤                         │
-│         │             │     │ id (PK)          │                         │
-│         │             │     │ user_id (FK) ────│──→ users.id             │
-│         │             │     │ status           │                         │
-│         │             │     │ current_step     │                         │
-│         │             │     │ photos (JSONB)   │                         │
-│         │             │     │ photo_angles     │                         │
-│         │             │     │ tier_snapshot    │                         │
-│         │             │     │ created_at       │                         │
-│         │             │     │ completed_at     │                         │
-│         │             │     └──────────────────┘                         │
-│         │             │            │                                     │
-│         │             │            │ 1:N                                 │
-│         │             │            ↓                                     │
-│         │             │     ┌──────────────────┐                         │
-│         │             │     │   agent_logs     │                         │
-│         │             │     ├──────────────────┤                         │
-│         │             │     │ id (PK)          │                         │
-│         │             │     │ job_id (FK) ─────│──→ jobs.id              │
-│         │             │     │ agent_name       │                         │
-│         │             │     │ step             │                         │
-│         │             │     │ message          │                         │
-│         │             │     │ tool_call        │                         │
-│         │             │     │ tool_input (JSON)│                         │
-│         │             │     │ tool_output(JSON)│                         │
-│         │             │     │ reasoning        │                         │
-│         │             │     │ created_at       │                         │
-│         │             │     └──────────────────┘                         │
-│         │             │                                                  │
-│         │             │     ┌──────────────────┐                         │
-│         │             └────→│    results       │                         │
-│         │                   ├──────────────────┤                         │
-│         │                   │ id (PK)          │                         │
-│         │                   │ job_id (FK, UQ) ─│──→ jobs.id              │
-│         │                   │ features (JSONB) │                         │
-│         │                   │ recommendations  │                         │
-│         │                   │ tier_snapshot    │                         │
-│         │                   │ created_at       │                         │
-│         │                   └──────────────────┘                         │
-│         │                                                                │
-│         │                   ┌──────────────────────────┐                 │
-│         └──────────────────→│  hairstyle_embeddings    │                 │
-│                             ├──────────────────────────┤                 │
-│                             │ id (PK)                  │                 │
-│                             │ style_name (UQ)          │                 │
-│                             │ description              │                 │
-│                             │ suitable_face_shapes     │                 │
-│                             │ suitable_hair_types      │                 │
-│                             │ suitable_thickness       │                 │
-│                             │ maintenance_level        │                 │
-│                             │ reference_image_url      │                 │
-│                             │ styling_tips             │                 │
-│                             │ barber_instructions      │                 │
-│                             │ embedding (VECTOR 1536)  │                 │
-│                             └──────────────────────────┘                 │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ┌──────────────────┐          ┌──────────────────┐                        │
+│   │      users       │          │    payments      │                        │
+│   ├──────────────────┤          ├──────────────────┤                        │
+│   │ id (PK, UUID)    │────┐     │ id (PK, UUID)    │                        │
+│   │ username (UQ)    │    │     │ user_id (FK) ────│──→ users.id             │
+│   │ email (UQ)       │    │     │ invoice_number   │                        │
+│   │ password_hash    │    │     │ amount           │                        │
+│   │ google_id        │    │     │ tier             │                        │
+│   │ device_id        │    │     │ status           │                        │
+│   │ tier             │    │     │ doku_session_id  │                        │
+│   │ created_at       │    │     │ doku_token_id    │                        │
+│   └──────────────────┘    │     │ payment_method   │                        │
+│          │                │     │ paid_at          │                        │
+│          │                │     │ created_at       │                        │
+│          │                │     └──────────────────┘                        │
+│          │                │                                                  │
+│          │                │     ┌──────────────────┐                        │
+│          │                ├────→│    analyses      │                        │
+│          │                │     ├──────────────────┤                        │
+│          │                │     │ id (PK, UUID)    │                        │
+│          │                │     │ user_id (FK) ────│──→ users.id             │
+│          │                │     │ image_url        │                        │
+│          │                │     │ face_shape       │                        │
+│          │                │     │ face_confidence  │                        │
+│          │                │     │ hair_density     │                        │
+│          │                │     │ hair_texture     │                        │
+│          │                │     │ status           │                        │
+│          │                │     │ current_agent    │                        │
+│          │                │     │ created_at       │                        │
+│          │                │     └──────────────────┘                        │
+│          │                │            │                                     │
+│          │                │            │ 1:N                                 │
+│          │                │            ↓                                     │
+│          │                │     ┌──────────────────┐                        │
+│          │                │     │   agent_logs     │                        │
+│          │                │     ├──────────────────┤                        │
+│          │                │     │ id (PK, SERIAL)  │                        │
+│          │                │     │ analysis_id (FK) │──→ analyses.id          │
+│          │                │     │ agent_name       │                        │
+│          │                │     │ step             │                        │
+│          │                │     │ message          │                        │
+│          │                │     │ tool_call        │                        │
+│          │                │     │ tool_input       │                        │
+│          │                │     │ tool_output      │                        │
+│          │                │     │ reasoning        │                        │
+│          │                │     │ created_at       │                        │
+│          │                │     └──────────────────┘                        │
+│          │                │                                                  │
+│          │                │     ┌──────────────────────┐                    │
+│          │                └────→│  recommendations     │                    │
+│          │                      ├──────────────────────┤                    │
+│          │                      │ id (PK, UUID)        │                    │
+│          │                      │ analysis_id (FK, UQ) │──→ analyses.id      │
+│          │                      │ style_name           │                    │
+│          │                      │ match_score          │                    │
+│          │                      │ barber_instruction   │                    │
+│          │                      │ maintenance          │                    │
+│          │                      │ styling_tips         │                    │
+│          │                      │ image_urls (JSONB)   │                    │
+│          │                      │ barbershop (JSONB)   │                    │
+│          │                      │ is_locked            │                    │
+│          │                      │ created_at           │                    │
+│          │                      └──────────────────────┘                    │
+│          │                                                                   │
+│          │                      ┌──────────────────────────┐                │
+│          └─────────────────────→│  hairstyle_embeddings    │                │
+│                                 ├──────────────────────────┤                │
+│                                 │ id (PK, SERIAL)          │                │
+│                                 │ style_name (UQ)          │                │
+│                                 │ description              │                │
+│                                 │ suitable_face_shapes     │                │
+│                                 │ suitable_hair_types      │                │
+│                                 │ suitable_thickness       │                │
+│                                 │ maintenance_level        │                │
+│                                 │ reference_image_url      │                │
+│                                 │ styling_tips             │                │
+│                                 │ barber_instruction       │                │
+│                                 │ embedding (VECTOR 1536)  │                │
+│                                 └──────────────────────────┘                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Table Definitions (Drizzle Schema)
+## Table Definitions
 
 ### users
 | Column | Type | Constraint | Notes |
 |--------|------|-----------|-------|
 | id | UUID | PK, default random | |
-| username | VARCHAR(50) | UNIQUE, NOT NULL | |
-| password_hash | VARCHAR(255) | NOT NULL | bcrypt |
+| username | VARCHAR(50) | UNIQUE, nullable | For registered users |
+| email | VARCHAR(255) | UNIQUE, nullable | For Google OAuth |
+| password_hash | VARCHAR(255) | nullable | bcrypt, nullable for OAuth/anonymous |
+| google_id | VARCHAR(255) | UNIQUE, nullable | Google OAuth ID |
+| device_id | VARCHAR(255) | UNIQUE, nullable | Anonymous session |
 | tier | VARCHAR(10) | DEFAULT 'free' | 'free' or 'pro' |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Auth methods:**
+- Anonymous: `device_id` set, `username/password/email/google_id` null
+- Username-password: `username + password_hash` set
+- Google: `email + google_id` set
 
 ### payments
 | Column | Type | Constraint | Notes |
@@ -104,55 +119,62 @@
 | id | UUID | PK, default random | |
 | user_id | UUID | FK → users.id | |
 | invoice_number | VARCHAR(64) | UNIQUE, NOT NULL | INV-{timestamp}-{random} |
-| amount | INTEGER | NOT NULL | IDR, no decimal |
+| amount | INTEGER | NOT NULL | IDR (e.g., 15000) |
+| tier | VARCHAR(10) | NOT NULL | 'pro' |
 | status | VARCHAR(20) | DEFAULT 'pending' | pending/paid/failed/expired |
-| doku_session_id | VARCHAR(255) | | DOKU order session_id |
+| doku_session_id | VARCHAR(255) | | DOKU order session |
 | doku_token_id | VARCHAR(255) | | DOKU checkout token |
-| payment_method | VARCHAR(50) | | QRIS/VA_BCA/CC/etc |
+| payment_method | VARCHAR(50) | | QRIS/VA_BCA/CC/OVO/etc |
 | paid_at | TIMESTAMPTZ | | When payment confirmed |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | |
 
-### jobs
+### analyses
 | Column | Type | Constraint | Notes |
 |--------|------|-----------|-------|
 | id | UUID | PK, default random | |
 | user_id | UUID | FK → users.id | |
-| status | VARCHAR(20) | DEFAULT 'pending' | pending/processing/completed/failed |
-| current_step | VARCHAR(50) | | vision/knowledge/ranking/imagegen/done |
-| photos | JSONB | | Array of R2 URLs |
-| photo_angles | JSONB | | ["front"] or ["front","back","left","right"] |
-| tier_snapshot | VARCHAR(10) | | Tier at time of job (free/pro) |
+| image_url | TEXT | NOT NULL | R2 URL of uploaded photo |
+| face_shape | VARCHAR(20) | | oval/round/square/heart/oblong/diamond |
+| face_confidence | FLOAT | | 0.0-1.0 |
+| hair_density | VARCHAR(20) | | thin/medium/thick |
+| hair_texture | VARCHAR(20) | | straight/wavy/curly/coily |
+| status | VARCHAR(20) | DEFAULT 'processing' | processing/completed/failed |
+| current_agent | VARCHAR(50) | | vision/knowledge/ranker/imagegen/done |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | |
-| completed_at | TIMESTAMPTZ | | |
 
 ### agent_logs
 | Column | Type | Constraint | Notes |
 |--------|------|-----------|-------|
-| id | INTEGER | PK, auto-increment | |
-| job_id | UUID | FK → jobs.id | |
+| id | SERIAL | PK | |
+| analysis_id | UUID | FK → analyses.id | |
 | agent_name | VARCHAR(50) | | vision/knowledge/ranker/imagegen |
 | step | VARCHAR(100) | | start/tool_call/tool_result/complete |
 | message | TEXT | | Human-readable progress |
-| tool_call | VARCHAR(100) | | Tool name if applicable |
+| tool_call | VARCHAR(100) | | Tool name |
 | tool_input | JSONB | | Tool input params |
 | tool_output | JSONB | | Tool output (truncated) |
-| reasoning | TEXT | | Agent's reasoning |
+| reasoning | TEXT | | Agent reasoning |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | |
 
-### results
+### recommendations
 | Column | Type | Constraint | Notes |
 |--------|------|-----------|-------|
 | id | UUID | PK, default random | |
-| job_id | UUID | FK → jobs.id, UNIQUE | One result per job |
-| features | JSONB | | FaceFeatures output |
-| recommendations | JSONB | | Top 3 (tier-filtered) |
-| tier_snapshot | VARCHAR(10) | | Tier at time of result |
+| analysis_id | UUID | FK → analyses.id, UNIQUE | One set per analysis |
+| style_name | VARCHAR(100) | NOT NULL | "Textured Crop" |
+| match_score | FLOAT | NOT NULL | 0-100 |
+| barber_instruction | TEXT | | Full barber instructions |
+| maintenance | TEXT | | Maintenance tips |
+| styling_tips | TEXT | | Styling product suggestions |
+| image_urls | JSONB | | `{ front, left, right, back, top }` |
+| barbershop | JSONB | | `{ instruction, location }` or null |
+| is_locked | BOOLEAN | DEFAULT true | true for free tier locked items |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | |
 
 ### hairstyle_embeddings
 | Column | Type | Constraint | Notes |
 |--------|------|-----------|-------|
-| id | INTEGER | PK, auto-increment | |
+| id | SERIAL | PK | |
 | style_name | VARCHAR(100) | UNIQUE, NOT NULL | |
 | description | TEXT | | |
 | suitable_face_shapes | JSONB | | ["oval", "round", ...] |
@@ -161,120 +183,82 @@
 | maintenance_level | VARCHAR(20) | | low/medium/high |
 | reference_image_url | TEXT | | Pre-generated or null |
 | styling_tips | TEXT | | |
-| barber_instructions | TEXT | | Locked for free tier |
+| barber_instruction | TEXT | | |
 | embedding | VECTOR(1536) | | pgvector for semantic search |
 
 ---
 
-## JSONB Schema Definitions
+## JSONB Schemas
 
-### jobs.photos
-```json
-["https://r2.dev/user123/job456/front.webp", "..."]
-```
-
-### jobs.photo_angles
-```json
-["front"]                    // free tier
-["front", "back", "left", "right"]  // pro tier
-```
-
-### results.features (FaceFeatures)
+### recommendations.image_urls
 ```json
 {
-  "face_shape": "oval",
-  "face_confidence": 0.87,
-  "hair_thickness": "thick",
-  "hair_texture": "straight",
-  "hairline": "high",
-  "forehead_size": "medium",
-  "jawline": "angular",
-  "current_hairstyle": "medium length, slightly wavy",
-  "photos_analyzed": 1,
-  "notes": "Rambut tebal, garis rambut tinggi"
+  "front": "https://r2.dev/.../style-front.webp",
+  "left": "https://r2.dev/.../style-left.webp",
+  "right": "https://r2.dev/.../style-right.webp",
+  "back": "https://r2.dev/.../style-back.webp",
+  "top": "https://r2.dev/.../style-top.webp"
 }
 ```
 
-### results.recommendations (Tier-filtered)
+### recommendations.barbershop
 ```json
-[
-  {
-    "rank": 1,
-    "style_name": "Textured Crop",
-    "match_percentage": 94,
-    "why_match": ["Bentuk wajah oval ideal", "Rambut tebal cocok"],
-    "styling_tips": "Gunakan matte clay...",
-    "maintenance_tips": "Potong setiap 4-6 minggu",
-    "barber_instructions": "Ask for textured crop, 2-3 inches on top...",  // PRO ONLY
-    "reference_images": {
-      "front": "https://r2.dev/.../textured-crop-front.webp",
-      "left": null,   // locked for free
-      "right": null,  // locked for free
-      "back": null    // locked for free
-    },
-    "is_locked": false  // rank 1 always unlocked
-  },
-  {
-    "rank": 2,
-    "style_name": "Side Part",
-    "match_percentage": 89,
-    "is_locked": true,  // locked for free
-    "locked_message": "Upgrade ke Pro untuk lihat semua rekomendasi"
-  },
-  {
-    "rank": 3,
-    "style_name": "French Crop",
-    "match_percentage": 85,
-    "is_locked": true,
-    "locked_message": "Upgrade ke Pro untuk lihat semua rekomendasi"
+{
+  "instruction": "Sides: #1.5 blended to #3. Top: Leave 6-7cm, add texture. Finish: Natural.",
+  "maintenance": "Trim every 4-5 weeks. Styling: Clay for texture, blow dry upward.",
+  "location": {
+    "id": "1",
+    "name": "Barbershop XYZ",
+    "address": "Jl. Raya Darmo No. 10",
+    "phone": "08123456789",
+    "latitude": "-7.2756",
+    "longitude": "112.7341",
+    "image": "https://example.com/barbershop.jpg"
   }
-]
+}
 ```
 
 ---
 
-## Tier Access Control Matrix
+## Tier Access Matrix
 
-| Feature | Free | Pro |
-|---------|------|-----|
-| Photo upload angles | front only (1) | all 4 (front, back, left, right) |
-| Agent pipeline runs | full (all 4 agents) | full (all 4 agents) |
-| Recommendations shown | 1 unlocked | all unlocked |
+| Feature | Free | Pro (Rp15k) |
+|---------|------|-------------|
+| Photo angles | depan only | depan, kanan, kiri, belakang |
+| Agent pipeline | full (4 agents) | full (4 agents) |
+| Recommendations shown | 1 clear + 5 locked | all 6 clear |
 | Generated images | front only | all angles |
 | Barber instructions | locked | unlocked |
+| Styling tips | locked | unlocked |
 | Location/barbershop | locked | unlocked |
-| Agent progress logs | visible | visible |
+| Sort order | lowest match first | highest match first |
 
 ---
 
-## DOKU Payment Flow (Detail)
+## DOKU Payment Flow
 
 ```
-1. User klik "Upgrade to Pro" di FE
-2. FE → POST /api/payment/create (Bearer JWT)
+1. User klik "Upgrade to Pro"
+2. FE → POST /api/v1/payments/checkout { user_id, tier: "pro", analysis_id }
 3. Backend:
    a. Create payment record (status: pending)
-   b. Generate invoice_number: INV-{timestamp}-{random}
-   c. Hit DOKU API:
-      POST https://sandbox.doku.com/checkout/v1/payment
-      Headers: Client-Id, Request-Id, Request-Timestamp, Signature
-      Body: { order: { amount, invoice_number }, payment: { ... } }
-   d. DOKU return: { payment.url, token_id, session_id }
-   e. Save doku_session_id, doku_token_id ke DB
-   f. Return { paymentUrl, invoiceNumber }
-4. FE redirect user ke paymentUrl (DOKU Checkout page)
+   b. Generate invoice_number
+   c. Hit DOKU Checkout API
+   d. DOKU return: { payment.url, token_id }
+   e. Save doku_token_id ke DB
+   f. Return { checkout_url, transaction_id }
+4. FE redirect user ke checkout_url (DOKU page)
 5. User pilih payment method, bayar
-6. DOKU send webhook ke Backend:
-      POST /api/payment/webhook
-      Body: { order: { invoice_number, status }, ... }
+6. DOKU webhook → POST /api/v1/payments/webhook
    Backend:
    a. Verify signature
    b. Update payment status → 'paid'
    c. Update user tier → 'pro'
-7. User redirect balik ke app (callback_url)
-8. FE check user tier → unlock all features
+   d. Unlock recommendations (is_locked → false)
+7. User redirect balik ke app
+8. FE refetch recommendations → all unlocked
 ```
 
 ---
 
-*Last updated: 15 Mei 2026, 12:58 WIB*
+*Last updated: 15 Mei 2026, 13:20 WIB*

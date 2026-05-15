@@ -2,7 +2,7 @@
 
 > **Branch:** dev-aldo
 > **Deadline:** 15 Mei 2026, 23:00 WIB
-> **Last updated:** 15 Mei 2026, 12:58 WIB
+> **Last updated:** 15 Mei 2026, 13:20 WIB
 
 ---
 
@@ -16,50 +16,145 @@
 | Main LLM | MiMo (custom base URL) |
 | Vision | Replicate: lucataco/moondream2 |
 | Image Gen | Replicate: black-forest-labs/flux-2-pro |
-| Auth | Username-password + JWT |
+| Auth | Anonymous session + Username-password + Google OAuth |
 | Storage | Cloudflare R2 (convert to webp) |
 | Rate Limiting | In-memory (Map) |
 | Database | Neon PostgreSQL + pgvector |
-| Payment | DOKU Checkout (one-time) |
+| Payment | DOKU Checkout (one-time, 2 tiers: free + pro) |
 | Deploy | Coolify (BE + FE) |
 
 ---
 
-## 🆓💎 Free vs Pro Tier
+## 🆓💎 Tiers (2 Only)
 
-### Free Tier
-- Photo upload: **front only** (1 foto)
-- Recommendations: **1 unlocked**, response tetap banyak tapi locked/cropped
-- Generated images: **front view only** (left, right, back = locked)
-- Barber instructions: **locked**
-- Location/barbershop: **locked** (debatable, bisa free)
+### Free (Rp0)
+- Photo: front only (1 angle: "depan")
+- Recommendations: 6 total, 1 clear + 5 locked/blurred
+- Generated images: front only
+- Barber instructions: locked
+- Styling tips: locked
+- Location: locked
+- Agent pipeline: full run (all 4 agents), tapi output di-filter
 
-### Pro Tier (One-time Payment via DOKU)
-- Photo upload: **all 4 angles** (front, back, left, right)
-- Recommendations: **all unlocked**
-- Generated images: **all angles unlocked**
-- Barber instructions: **unlocked**
-- Location/barbershop: **unlocked**
+### Pro (Rp15.000 — one-time via DOKU)
+- Photo: all 4 angles (depan, kanan, kiri, belakang)
+- Recommendations: all 6 clear & unlocked
+- Generated images: all angles (front, left, right, back)
+- Barber instructions: unlocked
+- Styling tips: unlocked
+- Location: unlocked
+- Agent pipeline: full run, full output
 
-### DOKU Checkout Flow
+---
+
+## 🔐 Auth (3 Methods)
+
+### 1. Anonymous Session (default)
 ```
-User klik "Upgrade to Pro"
-    ↓
-Backend create payment request ke DOKU
-    ↓
-DOKU return payment.url
-    ↓
-FE redirect user ke DOKU Checkout page
-    ↓
-User pilih payment method (VA, QRIS, CC, e-wallet)
-    ↓
-User bayar
-    ↓
-DOKU send webhook notification ke Backend
-    ↓
-Backend update user tier ke "pro"
-    ↓
-User redirect balik ke app, semua fitur unlocked
+POST /api/v1/users/session
+  Body: { device_id?: string }
+  Response: { id, tier: "free", created_at }
+```
+- User langsung bisa pakai tanpa login
+- Device ID dari localStorage
+- Auto-create user di DB
+
+### 2. Username-Password
+```
+POST /api/v1/auth/register
+  Body: { username, password }
+  Response: { token, user }
+
+POST /api/v1/auth/login
+  Body: { username, password }
+  Response: { token, user }
+```
+
+### 3. Google OAuth
+```
+GET /api/v1/auth/google
+  → Redirect ke Google consent screen
+
+GET /api/v1/auth/google/callback
+  → Create/link user, return JWT
+```
+
+---
+
+## 📡 API Contract (v1)
+
+### Base URL: `/api/v1`
+
+### Users & Auth
+```
+POST /users/session           → { id, tier, created_at }
+POST /auth/register           → { token, user }
+POST /auth/login              → { token, user }
+GET  /auth/google             → redirect
+GET  /auth/google/callback    → { token, user }
+```
+
+### Upload
+```
+POST /uploads
+  Headers: Authorization: Bearer <token> (optional)
+  Body: multipart/form-data { file: image, user_id: uuid }
+  Response: { id, url }
+```
+
+### Analysis
+```
+POST /analyses
+  Body: { user_id, image_url }
+  Response 202: { analysis_id, status: "processing" }
+
+GET /analyses/:id/status
+  Response: { analysis_id, status, current_agent?, progress? }
+```
+
+### Recommendations
+```
+GET /analyses/:id/recommendations
+  Response: {
+    tier: "free" | "pro",
+    data: [
+      {
+        name: "Textured Crop",
+        match: 94,
+        image: [
+          { type: "Front", url: "..." },
+          { type: "Side", url: "..." },
+          { type: "Back", url: "..." },
+          { type: "Top", url: "..." }
+        ],
+        barbershop: {
+          instruction: "Sides: #1.5 blended to #3...",
+          maintenance: "Trim every 4-5 weeks...",
+          location: { id, name, address, phone, latitude, longitude, image } | null
+        }
+      }
+    ]
+  }
+
+  Free tier:
+    - 1 recommendation with front image + barber data
+    - 5 recommendations with empty image array, null barbershop
+    - Sorted: lowest match first (hook mechanism)
+
+  Pro tier:
+    - All 6 recommendations with all images + full barber data
+    - Sorted: highest match first
+```
+
+### Payments
+```
+POST /payments/checkout
+  Body: { user_id, tier: "pro", analysis_id? }
+  Response: { checkout_url, transaction_id }
+
+POST /payments/webhook
+  Body: DOKU callback payload
+  Response: { status: "success" }
 ```
 
 ---
@@ -68,39 +163,39 @@ User redirect balik ke app, semua fitur unlocked
 
 ```
 backend/
-├── docs/
-│   └── plans/
-│       ├── FINAL-PLAN.md      ← file ini (master plan, update terus)
-│       └── ERD.md             ← database diagram
+├── docs/plans/              ← plan documents
 ├── src/
-│   ├── index.ts               # Hono server entry
+│   ├── index.ts             # Hono server entry
 │   ├── routes/
-│   │   ├── auth.ts            # POST /register, /login
-│   │   ├── analyze.ts         # POST /analyze
-│   │   ├── status.ts          # GET /status/:id, /result/:id
-│   │   └── payment.ts         # POST /payment/create, POST /payment/webhook
+│   │   ├── users.ts         # POST /users/session
+│   │   ├── auth.ts          # POST /auth/register, /login, /auth/google
+│   │   ├── uploads.ts       # POST /uploads
+│   │   ├── analyses.ts      # POST /analyses, GET /analyses/:id/status
+│   │   ├── recommendations.ts # GET /analyses/:id/recommendations
+│   │   └── payments.ts      # POST /payments/checkout, /payments/webhook
 │   ├── services/
+│   │   ├── user.service.ts
 │   │   ├── auth.service.ts
-│   │   ├── analyze.service.ts
-│   │   ├── job.service.ts
+│   │   ├── upload.service.ts
+│   │   ├── analysis.service.ts
+│   │   ├── recommendation.service.ts
 │   │   └── payment.service.ts
 │   ├── repositories/
 │   │   ├── user.repo.ts
-│   │   ├── job.repo.ts
+│   │   ├── analysis.repo.ts
+│   │   ├── recommendation.repo.ts
 │   │   ├── agent-log.repo.ts
-│   │   ├── result.repo.ts
 │   │   └── payment.repo.ts
 │   ├── lib/
 │   │   ├── db.ts
-│   │   ├── schema.ts          # Drizzle schema
+│   │   ├── schema.ts
 │   │   ├── r2.ts
 │   │   ├── auth.ts
-│   │   ├── doku.ts            # DOKU API client
+│   │   ├── doku.ts
 │   │   └── rate-limit.ts
 │   ├── middleware/
 │   │   ├── auth.ts
-│   │   ├── rate-limit.ts
-│   │   └── tier-check.ts      # Check free/pro access
+│   │   └── rate-limit.ts
 │   └── types.ts
 ├── drizzle/
 │   └── migrations/
@@ -111,7 +206,7 @@ backend/
 
 agent/
 ├── src/
-│   ├── index.ts               # Export runPipeline
+│   ├── index.ts
 │   ├── pipeline.ts
 │   ├── runner.ts
 │   ├── agents/
@@ -139,116 +234,68 @@ agent/
 
 ---
 
-## 🔄 Agent Pipeline
-
-```
-📸 User upload foto (1 free / 4 pro)
-        ↓
-┌──────────────────────────────────────┐
-│  🔍 Agent 1: Vision Analyzer         │
-│  API: Replicate moondream2           │
-│  Tools: analyze_image, merge         │
-│  Output: FaceFeatures JSON           │
-└──────────────┬───────────────────────┘
-               ↓
-┌──────────────────────────────────────┐
-│  🎨 Agent 2: Style Matcher           │
-│  API: MiMo (tool calling)            │
-│  Tools: query_face_shape,            │
-│         query_compatibility,         │
-│         get_style_details            │
-│  Output: List kandidat (5-7)         │
-└──────────────┬───────────────────────┘
-               ↓
-┌──────────────────────────────────────┐
-│  ⭐ Agent 3: Ranker & Explainer      │
-│  API: MiMo (tool calling)            │
-│  Tools: calculate_score,             │
-│         generate_explanation         │
-│  Output: Top 3 + alasan              │
-└──────────────┬───────────────────────┘
-               ↓
-┌──────────────────────────────────────┐
-│  🖼️ Agent 4: Image Generator         │
-│  API: Replicate FLUX-2-pro           │
-│  Tools: generate_hairstyle_image     │
-│  Output: reference images → R2       │
-└──────────────┬───────────────────────┘
-               ↓
-         📊 Final Result (tier-filtered)
-```
-
----
-
 ## 🔐 .env.example
 
 ```env
-# Main LLM — MiMo
+# === Main LLM — MiMo (Agent 2 & 3) ===
 MAIN_LLM_BASE_URL=https://your-mimo-endpoint
-MAIN_LLM_API_KEY=your-key-here
+MAIN_LLM_API_KEY=your-mimo-api-key
 MAIN_LLM_MODEL=mimo-v2.5-pro
 
-# Replicate (shared: vision + image gen)
+# === Replicate (Vision + Image Gen) ===
 REPLICATE_API_TOKEN=your-replicate-token
 REPLICATE_VISION_MODEL=lucataco/moondream2
 REPLICATE_IMAGEGEN_MODEL=black-forest-labs/flux-2-pro
 
-# Neon PostgreSQL
+# === Neon PostgreSQL ===
 DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
 
-# Cloudflare R2
+# === Cloudflare R2 ===
 R2_ACCOUNT_ID=your-account-id
 R2_ACCESS_KEY_ID=your-access-key
 R2_SECRET_ACCESS_KEY=your-secret-key
 R2_BUCKET_NAME=findmycut
 R2_PUBLIC_URL=https://your-bucket.r2.dev
 
-# Auth
+# === Auth ===
 JWT_SECRET=your-jwt-secret-min-32-chars
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=https://your-domain.com/api/v1/auth/google/callback
 
-# DOKU Payment
+# === DOKU Payment ===
 DOKU_CLIENT_ID=your-doku-client-id
 DOKU_SECRET_KEY=your-doku-secret-key
-DOKU_WEBHOOK_URL=https://your-domain.com/api/payment/webhook
 
-# Rate Limiting
+# === Rate Limiting ===
 RATE_LIMIT_MAX_REQUESTS=10
 RATE_LIMIT_WINDOW_MS=60000
 ```
 
 ---
 
-## 📡 API Contract
+## 🤖 Agent Pipeline
 
-### Auth
 ```
-POST /api/auth/register  → { token, user }
-POST /api/auth/login     → { token, user }
-```
-
-### Analysis
-```
-POST /api/analyze        → { jobId, status }  (multipart: photos[])
-GET  /api/status/:id     → { status, currentStep, progress[] }
-GET  /api/result/:id     → { features, recommendations }
-```
-
-### Payment
-```
-POST /api/payment/create → { paymentUrl, invoiceNumber }
-POST /api/payment/webhook → DOKU notification (server-to-server)
-```
-
-### Tier Access
-```
-Free:  POST /api/analyze { photos: [front] }
-Pro:   POST /api/analyze { photos: [front, back, left, right] }
-
-Free:  GET /api/result → recommendations[0] unlocked, rest locked
-Pro:   GET /api/result → all unlocked
-
-Free:  generated images = front only
-Pro:   generated images = all angles
+📸 User upload foto → R2
+        ↓
+🔍 Agent 1: Vision Analyzer (Replicate moondream2)
+   Tools: analyze_image, merge_analyses
+   Output: FaceFeatures JSON
+        ↓
+🎨 Agent 2: Style Matcher (MiMo tool calling)
+   Tools: query_face_shape_guide, query_hair_compatibility, get_style_details
+   Output: List kandidat (5-7)
+        ↓
+⭐ Agent 3: Ranker & Explainer (MiMo tool calling)
+   Tools: calculate_match_score, generate_explanation
+   Output: Top 6 recommendations
+        ↓
+🖼️ Agent 4: Image Generator (Replicate FLUX-2-pro)
+   Tools: generate_hairstyle_image
+   Output: reference images → R2
+        ↓
+📊 Result → DB → FE polls
 ```
 
 ---
@@ -257,18 +304,18 @@ Pro:   generated images = all angles
 
 | Waktu | Task |
 |-------|------|
-| 13.00-13.30 | Setup: bun init, drizzle, neon, .env |
-| 13.30-14.30 | Backend: auth + schema + db |
-| 14.30-15.30 | Agent: runner + pipeline + types |
-| 15.30-17.00 | Agent 1 (Vision) + Agent 2 (Knowledge) |
-| 17.00-18.00 | Agent 3 (Ranker) |
-| 18.00-18.30 | Break |
-| 18.30-19.30 | Agent 4 (Image Gen) + R2 integration |
-| 19.30-20.00 | DOKU payment integration |
+| 13.30-14.00 | Setup: bun init, drizzle, neon, .env |
+| 14.00-15.00 | Backend: schema + auth + users session |
+| 15.00-16.00 | Agent: runner + pipeline + types |
+| 16.00-17.30 | Agent 1 (Vision) + Agent 2 (Knowledge) |
+| 17.30-18.30 | Agent 3 (Ranker) |
+| 18.30-19.00 | Break |
+| 19.00-19.30 | Agent 4 (Image Gen) + R2 |
+| 19.30-20.00 | DOKU payment + tier filtering |
 | 20.00-21.00 | Integration + testing |
 | 21.00-22.00 | Demo video + pitch deck |
 | 22.00-23.00 | Submit Devpost |
 
 ---
 
-*Last updated: 15 Mei 2026, 12:58 WIB*
+*Last updated: 15 Mei 2026, 13:20 WIB*
