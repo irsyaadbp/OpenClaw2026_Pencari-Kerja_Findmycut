@@ -18,6 +18,14 @@ export async function getRecommendations(analysisId: string, headers: Headers) {
     const sorted = [...recs].sort((a, b) => (a.matchScore || 0) - (b.matchScore || 0));
     return {
       tier: "free",
+      analysis: {
+        id: analysis.id,
+        status: analysis.status,
+        face_shape: analysis.faceShape,
+        face_confidence: analysis.faceConfidence,
+        hair_density: analysis.hairDensity,
+        hair_texture: analysis.hairTexture,
+      },
       data: sorted.map((r, i) => ({
         name: r.styleName,
         match: r.matchScore,
@@ -25,6 +33,8 @@ export async function getRecommendations(analysisId: string, headers: Headers) {
           ? [{ type: "Front", url: (r.imageUrls as any).front }]
           : [],
         barbershop: i === 0 ? r.barbershop : null,
+        barber_instruction: i === 0 ? r.barberInstruction : null,
+        styling_tips: i === 0 ? r.stylingTips : null,
         is_locked: i > 0,
       })),
     };
@@ -34,6 +44,14 @@ export async function getRecommendations(analysisId: string, headers: Headers) {
   const sorted = [...recs].sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
   return {
     tier: "pro",
+    analysis: {
+      id: analysis.id,
+      status: analysis.status,
+      face_shape: analysis.faceShape,
+      face_confidence: analysis.faceConfidence,
+      hair_density: analysis.hairDensity,
+      hair_texture: analysis.hairTexture,
+    },
     data: sorted.map((r) => {
       const urls = r.imageUrls as any || {};
       return {
@@ -47,6 +65,9 @@ export async function getRecommendations(analysisId: string, headers: Headers) {
           urls.top ? { type: "Top", url: urls.top } : null,
         ].filter(Boolean),
         barbershop: r.barbershop,
+        barber_instruction: r.barberInstruction,
+        maintenance: r.maintenance,
+        styling_tips: r.stylingTips,
         is_locked: false,
       };
     }),

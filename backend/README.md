@@ -60,10 +60,10 @@ Uploads image to Cloudflare R2. Returns public URL.
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/` | `{ user_id, image_url }` | `{ analysis_id, status: "processing" }` (202) |
+| POST | `/` | `{ user_id, image_url?, image_urls?, latitude?, longitude?, tier? }` | `{ analysis_id, status: "processing" }` (202) |
 | GET | `/:id/status` | — | `{ analysis_id, status, current_agent, progress[] }` |
 
-Creates analysis and triggers agent pipeline. Poll status to track progress.
+Creates analysis and triggers agent pipeline (async, non-blocking). Supports single `image_url` or multiple `image_urls[]`. Optional `latitude`/`longitude` enables barbershop finder. Optional `tier` (default: "free").
 
 ### Recommendations (`/api/v1/analyses`)
 
@@ -163,7 +163,8 @@ backend/src/
 │   ├── upload.service.ts  # R2 upload wrapper
 │   ├── analysis.service.ts # Create analysis, log agent steps
 │   ├── recommendation.service.ts # Tier-gated recommendations
-│   └── payment.service.ts # DOKU checkout + webhook
+│   ├── payment.service.ts # DOKU checkout + webhook
+│   └── agent-runner.service.ts # Async pipeline integration
 ├── repositories/
 │   ├── user.repo.ts       # Raw SQL for Better Auth user table
 │   ├── analysis.repo.ts   # Analyses CRUD
