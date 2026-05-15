@@ -1,30 +1,30 @@
 {
   "straight": {
     "compatible": {
-      "thin": ["Textured Crop", "French Crop", "Crew Cut"],
-      "medium": ["Side Part", "Slick Back", "Pompadour", "Quiff"],
-      "thick": ["Undercut", "Pompadour", "Quiff", "Textured Crop"]
+      "thin": ["Textured Crop", "French Crop", "Crew Cut", "Caesar Cut", "Messy Crop", "Fringe", "Crop Top", "Ivy League", "Buzz Cut", "Spiky Hair", "Comb Over"],
+      "medium": ["Side Part", "Slick Back", "Pompadour", "Quiff", "Curtain", "Edgar", "Comb Over", "Ivy League", "Faux Hawk", "Crew Cut", "Layered Cut", "Fringe"],
+      "thick": ["Undercut", "Pompadour", "Quiff", "Textured Crop", "Slick Back", "Side Part", "Curtain", "Faux Hawk", "Mullet", "Wolf Cut", "Spiky Hair", "Layered Cut", "Messy Crop"]
     }
   },
   "wavy": {
     "compatible": {
-      "thin": ["Textured Crop", "Messy Crop"],
-      "medium": ["Textured Crop", "Side Part", "Quiff"],
-      "thick": ["Undercut", "Textured Quiff", "Side Part"]
+      "thin": ["Textured Crop", "Messy Crop", "Fringe", "Curtain", "French Crop", "Caesar Cut", "Crop Top", "Crew Cut", "Ivy League", "Brushed Back Waves"],
+      "medium": ["Textured Crop", "Side Part", "Quiff", "Wavy Pompadour", "Curtain", "Messy Crop", "Fringe", "Wolf Cut", "Brushed Back Waves", "Layered Cut", "Faux Hawk", "Beachy Waves"],
+      "thick": ["Undercut", "Textured Quiff", "Side Part", "Wavy Pompadour", "Mullet", "Wolf Cut", "Curtain", "Layered Cut", "Slick Back", "Brushed Back Waves", "Faux Hawk", "Long Waves"]
     }
   },
   "curly": {
     "compatible": {
-      "thin": ["Curly Crop", "Caesar Cut"],
-      "medium": ["Curly Undercut", "Faux Hawk"],
-      "thick": ["Curly Undercut", "Curly Pompadour"]
+      "thin": ["Curly Crop", "Caesar Cut", "French Crop", "Short Curly Fade", "Messy Curly Crop", "Textured Crew Cut", "Curly Fringe", "Curly Crop Top"],
+      "medium": ["Curly Undercut", "Faux Hawk", "Curly Taper Fade", "Messy Curly Hair Fade", "Curly Fringe", "Curly Side Part", "Curly Pompadour", "Textured Crew Cut", "Curly Crop Top"],
+      "thick": ["Curly Undercut", "Curly Pompadour", "Curly Taper Fade", "Afro", "Messy Curly Hair Fade", "Curly Mullet", "Curly Faux Hawk", "Curly Top Knot", "Curly Man Bun", "Long Curly Flow"]
     }
   },
   "coily": {
     "compatible": {
-      "thin": ["Short Coils", "Caesar Cut"],
-      "medium": ["High Top Fade", "Curly Undercut"],
-      "thick": ["High Top Fade", "Curly Afro"]
+      "thin": ["Short Coils", "Caesar Cut", "Taper Fade", "Short Twist Out", "Curly Crop", "Line Up", "Low Fade", "Textured Buzz"],
+      "medium": ["High Top Fade", "Curly Undercut", "Taper Fade", "Twist Out", "Flat Top", "Mid Fade", "Curly Taper Fade", "Short Locs", "Curly Crop Top", "Temp Fade"],
+      "thick": ["High Top Fade", "Curly Afro", "Flat Top", "Twist Out", "Dreadlocks", "Freeform Afro", "Burst Fade", "Temp Fade", "Short Locs", "Sponge Twists", "High Fade", "Man Bun with Coils"]
     }
   }
 }
