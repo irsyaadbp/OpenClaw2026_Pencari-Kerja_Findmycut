@@ -1,0 +1,30 @@
+{
+  "straight": {
+    "compatible": {
+      "thin": ["Textured Crop", "French Crop", "Crew Cut"],
+      "medium": ["Side Part", "Slick Back", "Pompadour", "Quiff"],
+      "thick": ["Undercut", "Pompadour", "Quiff", "Textured Crop"]
+    }
+  },
+  "wavy": {
+    "compatible": {
+      "thin": ["Textured Crop", "Messy Crop"],
+      "medium": ["Textured Crop", "Side Part", "Quiff"],
+      "thick": ["Undercut", "Textured Quiff", "Side Part"]
+    }
+  },
+  "curly": {
+    "compatible": {
+      "thin": ["Curly Crop", "Caesar Cut"],
+      "medium": ["Curly Undercut", "Faux Hawk"],
+      "thick": ["Curly Undercut", "Curly Pompadour"]
+    }
+  },
+  "coily": {
+    "compatible": {
+      "thin": ["Short Coils", "Caesar Cut"],
+      "medium": ["High Top Fade", "Curly Undercut"],
+      "thick": ["High Top Fade", "Curly Afro"]
+    }
+  }
+}
